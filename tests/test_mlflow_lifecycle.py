@@ -78,7 +78,9 @@ def test_lifecycle_one_run_holds_train_and_eval(tmp_path):
     run = client.get_run(run_id)
     assert run.data.params["model_type"] == "LogisticRegression"
     assert run.data.metrics["train_accuracy"] == 1.0
+    assert run.data.metrics["train_f1"] == 1.0
     assert run.data.metrics["accuracy"] == 1.0
+    assert run.data.metrics["f1"] == 1.0
 
 
 def test_log_evaluation_metrics_creates_no_second_run(tmp_path):
