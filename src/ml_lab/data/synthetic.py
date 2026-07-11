@@ -70,5 +70,5 @@ def write_smoke_data(dest: Path = DATA_PROCESSED_SMOKE) -> dict:
         "train_sha256": _sha256_of_file(train_path),
         "test_sha256": _sha256_of_file(test_path),
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest

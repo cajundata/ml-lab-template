@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pandas as pd
@@ -141,3 +142,15 @@ def test_checksums_are_stable_across_regeneration(tmp_path):
     second = write_smoke_data(dest=tmp_path / "run_b")
     assert first["train_sha256"] == second["train_sha256"]
     assert first["test_sha256"] == second["test_sha256"]
+
+
+def test_manifest_checksums_match_actual_file_hashes(tmp_path):
+    manifest = write_smoke_data(dest=tmp_path)
+    assert (
+        manifest["train_sha256"]
+        == hashlib.sha256((tmp_path / "train.csv").read_bytes()).hexdigest()
+    )
+    assert (
+        manifest["test_sha256"]
+        == hashlib.sha256((tmp_path / "test.csv").read_bytes()).hexdigest()
+    )
