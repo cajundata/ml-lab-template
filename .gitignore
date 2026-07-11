@@ -12,3 +12,4 @@ artifacts/*
 !**/.gitkeep
 !**/README.md
 .master_plan/
+mlflow.db
