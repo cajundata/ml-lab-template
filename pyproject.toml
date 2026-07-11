@@ -1,0 +1,26 @@
+[project]
+name = "ml-lab-template"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "boto3",
+  "joblib",
+  "mlflow",
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "typer",
+  "python-dotenv"
+]
+
+[dependency-groups]
+dev = [
+  "pytest"
+]
+
+[project.scripts]
+ml-lab = "ml_lab.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

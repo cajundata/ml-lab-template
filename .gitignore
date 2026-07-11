@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+mlruns/
+.env
+data/processed/*
+data/interim/*
+data/raw/*
+models/smoke/
+reports/smoke/
+artifacts/*
+!**/.gitkeep
+!**/README.md
