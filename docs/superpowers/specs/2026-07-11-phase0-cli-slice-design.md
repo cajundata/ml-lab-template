@@ -99,13 +99,16 @@ Behavior:
 
 ```python
 def evaluate_smoke(
-    model_dir=MODELS_SMOKE_LATEST,
     data_dir=DATA_PROCESSED_SMOKE,
+    model_dir=MODELS_SMOKE_LATEST,
     reports_dir=REPORTS_SMOKE_LATEST,
     tracking_uri=MLRUNS_DIR,
 ) -> dict:
     ...
 ```
+
+(Parameter order mirrors `train_smoke` — `data_dir` first — for CLI-module
+consistency; the internal `evaluate_smoke_model` call is by keyword.)
 
 Behavior:
 1. `run_id_path = Path(reports_dir) / "train_run_id.txt"`. If it does not
