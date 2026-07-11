@@ -25,3 +25,14 @@ def start_training_run(
         mlflow.log_metrics(metrics)
         run_id = run.info.run_id
     return run_id
+
+
+def log_evaluation_metrics(
+    run_id: str,
+    metrics: dict,
+    tracking_uri=MLRUNS_DIR,
+) -> None:
+    """Reopen an existing MLflow run by id and log evaluation metrics to it."""
+    mlflow.set_tracking_uri(str(tracking_uri))
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_metrics(metrics)
