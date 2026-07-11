@@ -15,6 +15,12 @@ def test_generate_is_deterministic_for_fixed_seed():
     pd.testing.assert_frame_equal(a, b)
 
 
+def test_generate_differs_for_different_seed():
+    a = generate_smoke_data(seed=SMOKE_SEED)
+    b = generate_smoke_data(seed=0)
+    assert not a.equals(b)
+
+
 def test_generate_has_expected_columns_in_order():
     df = generate_smoke_data(seed=SMOKE_SEED)
     assert list(df.columns) == [*FEATURE_NAMES, TARGET_NAME]
