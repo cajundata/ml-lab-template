@@ -5,6 +5,7 @@ from ml_lab.config import (
     FEATURE_NAMES,
     SMOKE_ROWS,
     SMOKE_SEED,
+    SMOKE_TRAIN_ROWS,
     TARGET_NAME,
 )
 
@@ -24,3 +25,12 @@ def generate_smoke_data(
     )
     df[TARGET_NAME] = (score > 0).astype(int)
     return df
+
+
+def split_smoke_data(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """First SMOKE_TRAIN_ROWS rows train, remaining rows test. No shuffle."""
+    train_df = df.iloc[:SMOKE_TRAIN_ROWS].reset_index(drop=True)
+    test_df = df.iloc[SMOKE_TRAIN_ROWS:].reset_index(drop=True)
+    return train_df, test_df

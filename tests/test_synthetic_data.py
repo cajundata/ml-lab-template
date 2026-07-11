@@ -4,9 +4,11 @@ from ml_lab.config import (
     FEATURE_NAMES,
     SMOKE_ROWS,
     SMOKE_SEED,
+    SMOKE_TEST_ROWS,
+    SMOKE_TRAIN_ROWS,
     TARGET_NAME,
 )
-from ml_lab.data.synthetic import generate_smoke_data
+from ml_lab.data.synthetic import generate_smoke_data, split_smoke_data
 
 
 def test_generate_is_deterministic_for_fixed_seed():
@@ -51,3 +53,31 @@ def test_generate_label_rule_matches_hyperplane():
     )
     expected = (score > 0).astype(int)
     assert (df[TARGET_NAME] == expected).all()
+
+
+def test_split_train_row_count():
+    train_df, _ = split_smoke_data(generate_smoke_data(seed=SMOKE_SEED))
+    assert len(train_df) == SMOKE_TRAIN_ROWS
+
+
+def test_split_test_row_count():
+    _, test_df = split_smoke_data(generate_smoke_data(seed=SMOKE_SEED))
+    assert len(test_df) == SMOKE_TEST_ROWS
+
+
+def test_split_preserves_order_no_shuffle():
+    df = generate_smoke_data(seed=SMOKE_SEED)
+    train_df, test_df = split_smoke_data(df)
+    pd.testing.assert_frame_equal(
+        train_df, df.iloc[:SMOKE_TRAIN_ROWS].reset_index(drop=True)
+    )
+    pd.testing.assert_frame_equal(
+        test_df, df.iloc[SMOKE_TRAIN_ROWS:].reset_index(drop=True)
+    )
+
+
+def test_split_columns_match_source():
+    df = generate_smoke_data(seed=SMOKE_SEED)
+    train_df, test_df = split_smoke_data(df)
+    assert list(train_df.columns) == [*FEATURE_NAMES, TARGET_NAME]
+    assert list(test_df.columns) == [*FEATURE_NAMES, TARGET_NAME]
