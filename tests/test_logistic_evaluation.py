@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from ml_lab.config import SMOKE_TEST_ROWS
 from ml_lab.data.synthetic import write_smoke_data
 from ml_lab.evaluation.logistic_eval import evaluate_smoke_model
 from ml_lab.models.logistic_smoke import (
@@ -52,7 +53,7 @@ def test_confusion_matrix_is_2x2(tmp_path):
 def test_evaluated_row_count(tmp_path):
     model_dir, data_dir, reports_dir = _setup(tmp_path)
     metrics = evaluate_smoke_model(model_dir, data_dir, reports_dir)
-    assert metrics["evaluated_row_count"] == 60
+    assert metrics["evaluated_row_count"] == SMOKE_TEST_ROWS
 
 
 def test_predictions_csv_shape_and_columns(tmp_path):
@@ -60,7 +61,7 @@ def test_predictions_csv_shape_and_columns(tmp_path):
     evaluate_smoke_model(model_dir, data_dir, reports_dir)
     preds = pd.read_csv(reports_dir / "predictions.csv")
     assert list(preds.columns) == ["y_true", "y_pred", "y_score"]
-    assert len(preds) == 60
+    assert len(preds) == SMOKE_TEST_ROWS
 
 
 def test_missing_test_split_raises(tmp_path):

@@ -38,7 +38,7 @@ def evaluate_smoke_model(
 
     missing = [c for c in FEATURE_NAMES if c not in test_df.columns]
     if TARGET_NAME not in test_df.columns:
-        missing = missing + [TARGET_NAME]
+        missing.append(TARGET_NAME)
     if missing:
         raise SchemaValidationError(
             f"Test data does not match schema; missing columns: {missing}"
