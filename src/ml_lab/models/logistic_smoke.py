@@ -13,6 +13,10 @@ MODEL_NAME = "logistic_smoke"
 MODEL_VERSION = "0.1.0"
 
 
+class SchemaValidationError(ValueError):
+    """Raised when input features do not match the model schema."""
+
+
 class SmokeModel:
     """Fitted logistic smoke model plus its schema and metadata."""
 
@@ -20,6 +24,24 @@ class SmokeModel:
         self.estimator = estimator
         self.schema = schema
         self.metadata = metadata
+
+    def predict(self, df: pd.DataFrame):
+        self._validate_features(df)
+        return self.estimator.predict(df[self.schema["feature_names"]])
+
+    def _validate_features(self, df: pd.DataFrame) -> None:
+        expected = self.schema["feature_names"]
+        if list(df.columns) != expected:
+            raise SchemaValidationError(
+                f"Feature columns {list(df.columns)} do not match "
+                f"schema {expected}"
+            )
+        for col in expected:
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                raise SchemaValidationError(
+                    f"Feature column '{col}' must be numeric, "
+                    f"got dtype {df[col].dtype}"
+                )
 
 
 def _build_schema(X: pd.DataFrame, y: pd.Series) -> dict:

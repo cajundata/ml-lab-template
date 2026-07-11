@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import numpy as np
+import pytest
 from sklearn.linear_model import LogisticRegression
 
 from ml_lab.config import FEATURE_NAMES, TARGET_NAME
@@ -8,6 +9,7 @@ from ml_lab.data.synthetic import generate_smoke_data, split_smoke_data
 from ml_lab.models.logistic_smoke import (
     MODEL_NAME,
     MODEL_VERSION,
+    SchemaValidationError,
     SmokeModel,
     train_smoke_model,
 )
@@ -49,3 +51,51 @@ def test_metadata_contents():
     assert md["mlflow_run_id"] is None
     parsed = datetime.fromisoformat(md["created_at"])
     assert parsed.tzinfo is not None
+
+
+def _test_features():
+    _, test_df = split_smoke_data(generate_smoke_data())
+    return test_df[list(FEATURE_NAMES)]
+
+
+def test_predict_count_matches_input_rows():
+    model = train_smoke_model(_train_split())
+    features = _test_features()
+    preds = model.predict(features)
+    assert len(preds) == len(features)
+
+
+def test_predict_is_binary():
+    model = train_smoke_model(_train_split())
+    preds = model.predict(_test_features())
+    assert set(preds).issubset({0, 1})
+
+
+def test_predict_rejects_missing_column():
+    model = train_smoke_model(_train_split())
+    bad = _test_features()[["x0", "x1", "x2"]]
+    with pytest.raises(SchemaValidationError):
+        model.predict(bad)
+
+
+def test_predict_rejects_extra_column():
+    model = train_smoke_model(_train_split())
+    bad = _test_features().copy()
+    bad["x4"] = 0.0
+    with pytest.raises(SchemaValidationError):
+        model.predict(bad)
+
+
+def test_predict_rejects_wrong_order():
+    model = train_smoke_model(_train_split())
+    bad = _test_features()[["x1", "x0", "x2", "x3"]]
+    with pytest.raises(SchemaValidationError):
+        model.predict(bad)
+
+
+def test_predict_rejects_nonnumeric():
+    model = train_smoke_model(_train_split())
+    bad = _test_features().copy()
+    bad["x0"] = "not a number"
+    with pytest.raises(SchemaValidationError):
+        model.predict(bad)
