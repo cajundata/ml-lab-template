@@ -50,7 +50,16 @@ hardcodes the Phase 0 param list; the CLI decides what to log.
 
 ## Module design — `src/ml_lab/tracking/mlflow_utils.py`
 
-Imports: `mlflow`; `EXPERIMENT_NAME`, `MLRUNS_DIR` from `ml_lab.config`.
+Imports: `os`, `mlflow`; `EXPERIMENT_NAME`, `MLRUNS_DIR` from `ml_lab.config`.
+
+**MLflow 3.14 file-store opt-in.** MLflow 3.14 put the local file store
+(`./mlruns`) into maintenance mode and raises `MlflowException` on
+`FileStore` construction unless `MLFLOW_ALLOW_FILE_STORE=true`. Phase 0
+deliberately uses the local file store (a master-plan-locked decision), so this
+module opts in at import — `os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE",
+"true")` — which covers both the application and any test importing the module.
+This keeps the locked "local `./mlruns`, no DB backend" decision intact via
+MLflow's documented supported opt-out.
 
 ### `start_training_run`
 
