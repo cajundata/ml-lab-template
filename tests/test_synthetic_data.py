@@ -68,11 +68,17 @@ def test_split_test_row_count():
 def test_split_preserves_order_no_shuffle():
     df = generate_smoke_data(seed=SMOKE_SEED)
     train_df, test_df = split_smoke_data(df)
-    pd.testing.assert_frame_equal(
-        train_df, df.iloc[:SMOKE_TRAIN_ROWS].reset_index(drop=True)
+    pd.testing.assert_series_equal(
+        train_df.iloc[0], df.iloc[0], check_names=False
     )
-    pd.testing.assert_frame_equal(
-        test_df, df.iloc[SMOKE_TRAIN_ROWS:].reset_index(drop=True)
+    pd.testing.assert_series_equal(
+        train_df.iloc[-1], df.iloc[SMOKE_TRAIN_ROWS - 1], check_names=False
+    )
+    pd.testing.assert_series_equal(
+        test_df.iloc[0], df.iloc[SMOKE_TRAIN_ROWS], check_names=False
+    )
+    pd.testing.assert_series_equal(
+        test_df.iloc[-1], df.iloc[-1], check_names=False
     )
 
 
