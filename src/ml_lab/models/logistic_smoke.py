@@ -33,6 +33,12 @@ class SmokeModel:
         self._validate_features(df)
         return self.estimator.predict(df[self.schema["feature_names"]])
 
+    def predict_proba(self, df: pd.DataFrame):
+        self._validate_features(df)
+        return self.estimator.predict_proba(
+            df[self.schema["feature_names"]]
+        )[:, 1]
+
     def _validate_features(self, df: pd.DataFrame) -> None:
         expected = self.schema["feature_names"]
         if list(df.columns) != expected:

@@ -125,3 +125,23 @@ def test_load_restores_schema_and_metadata(tmp_path):
     reloaded = SmokeModel.load(dest=tmp_path)
     assert reloaded.schema == model.schema
     assert reloaded.metadata == model.metadata
+
+
+def test_predict_proba_length_matches_rows():
+    model = train_smoke_model(_train_split())
+    features = _test_features()
+    proba = model.predict_proba(features)
+    assert len(proba) == len(features)
+
+
+def test_predict_proba_values_in_unit_interval():
+    model = train_smoke_model(_train_split())
+    proba = model.predict_proba(_test_features())
+    assert ((proba >= 0.0) & (proba <= 1.0)).all()
+
+
+def test_predict_proba_rejects_bad_frame():
+    model = train_smoke_model(_train_split())
+    bad = _test_features()[["x0", "x1", "x2"]]
+    with pytest.raises(SchemaValidationError):
+        model.predict_proba(bad)
