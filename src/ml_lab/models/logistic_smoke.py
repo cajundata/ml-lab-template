@@ -1,10 +1,14 @@
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
+import joblib
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
 from ml_lab.config import (
     FEATURE_NAMES,
+    MODELS_SMOKE_LATEST,
     SMOKE_SEED,
     TARGET_NAME,
 )
@@ -42,6 +46,27 @@ class SmokeModel:
                     f"Feature column '{col}' must be numeric, "
                     f"got dtype {df[col].dtype}"
                 )
+
+    def save(self, dest: Path = MODELS_SMOKE_LATEST) -> None:
+        dest = Path(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        joblib.dump(self.estimator, dest / "model.joblib")
+        (dest / "schema.json").write_text(
+            json.dumps(self.schema, indent=2) + "\n", encoding="utf-8"
+        )
+        (dest / "metadata.json").write_text(
+            json.dumps(self.metadata, indent=2) + "\n", encoding="utf-8"
+        )
+
+    @classmethod
+    def load(cls, dest: Path = MODELS_SMOKE_LATEST) -> "SmokeModel":
+        dest = Path(dest)
+        estimator = joblib.load(dest / "model.joblib")
+        schema = json.loads((dest / "schema.json").read_text(encoding="utf-8"))
+        metadata = json.loads(
+            (dest / "metadata.json").read_text(encoding="utf-8")
+        )
+        return cls(estimator=estimator, schema=schema, metadata=metadata)
 
 
 def _build_schema(X: pd.DataFrame, y: pd.Series) -> dict:

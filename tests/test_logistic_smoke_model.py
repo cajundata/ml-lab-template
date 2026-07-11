@@ -99,3 +99,29 @@ def test_predict_rejects_nonnumeric():
     bad["x0"] = "not a number"
     with pytest.raises(SchemaValidationError):
         model.predict(bad)
+
+
+def test_save_creates_artifact_files(tmp_path):
+    model = train_smoke_model(_train_split())
+    model.save(dest=tmp_path)
+    assert (tmp_path / "model.joblib").exists()
+    assert (tmp_path / "schema.json").exists()
+    assert (tmp_path / "metadata.json").exists()
+
+
+def test_load_round_trips_predictions(tmp_path):
+    model = train_smoke_model(_train_split())
+    features = _test_features()
+    before = model.predict(features)
+    model.save(dest=tmp_path)
+    reloaded = SmokeModel.load(dest=tmp_path)
+    after = reloaded.predict(features)
+    assert (before == after).all()
+
+
+def test_load_restores_schema_and_metadata(tmp_path):
+    model = train_smoke_model(_train_split())
+    model.save(dest=tmp_path)
+    reloaded = SmokeModel.load(dest=tmp_path)
+    assert reloaded.schema == model.schema
+    assert reloaded.metadata == model.metadata
