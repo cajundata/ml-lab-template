@@ -11,3 +11,4 @@ reports/smoke/
 artifacts/*
 !**/.gitkeep
 !**/README.md
+.master_plan/
