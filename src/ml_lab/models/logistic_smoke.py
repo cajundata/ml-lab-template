@@ -16,7 +16,7 @@ MODEL_VERSION = "0.1.0"
 class SmokeModel:
     """Fitted logistic smoke model plus its schema and metadata."""
 
-    def __init__(self, estimator, schema: dict, metadata: dict):
+    def __init__(self, estimator: LogisticRegression, schema: dict, metadata: dict):
         self.estimator = estimator
         self.schema = schema
         self.metadata = metadata

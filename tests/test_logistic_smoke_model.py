@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 
 from ml_lab.config import FEATURE_NAMES, TARGET_NAME
@@ -25,7 +28,7 @@ def test_train_returns_smoke_model_with_fitted_logreg():
 def test_train_is_deterministic():
     a = train_smoke_model(_train_split())
     b = train_smoke_model(_train_split())
-    assert (a.estimator.coef_ == b.estimator.coef_).all()
+    np.testing.assert_array_equal(a.estimator.coef_, b.estimator.coef_)
 
 
 def test_schema_contents():
@@ -44,4 +47,5 @@ def test_metadata_contents():
     assert md["features"] == list(FEATURE_NAMES)
     assert md["target"] == TARGET_NAME
     assert md["mlflow_run_id"] is None
-    assert md["created_at"]
+    parsed = datetime.fromisoformat(md["created_at"])
+    assert parsed.tzinfo is not None
