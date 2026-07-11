@@ -1,7 +1,12 @@
+import hashlib
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from ml_lab.config import (
+    DATA_PROCESSED_SMOKE,
     FEATURE_NAMES,
     SMOKE_ROWS,
     SMOKE_SEED,
@@ -34,3 +39,36 @@ def split_smoke_data(
     train_df = df.iloc[:SMOKE_TRAIN_ROWS].reset_index(drop=True)
     test_df = df.iloc[SMOKE_TRAIN_ROWS:].reset_index(drop=True)
     return train_df, test_df
+
+
+def _sha256_of_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_smoke_data(dest: Path = DATA_PROCESSED_SMOKE) -> dict:
+    """Generate, split, persist CSVs + checksummed manifest. Returns manifest."""
+    dest = Path(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    df = generate_smoke_data()
+    train_df, test_df = split_smoke_data(df)
+
+    train_path = dest / "train.csv"
+    test_path = dest / "test.csv"
+    manifest_path = dest / "split_manifest.json"
+
+    train_df.to_csv(train_path, index=False)
+    test_df.to_csv(test_path, index=False)
+
+    manifest = {
+        "seed": SMOKE_SEED,
+        "rows": SMOKE_ROWS,
+        "train_rows": int(len(train_df)),
+        "test_rows": int(len(test_df)),
+        "feature_names": list(FEATURE_NAMES),
+        "target_name": TARGET_NAME,
+        "train_sha256": _sha256_of_file(train_path),
+        "test_sha256": _sha256_of_file(test_path),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    return manifest

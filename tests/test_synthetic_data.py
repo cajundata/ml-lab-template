@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from ml_lab.config import (
@@ -8,7 +10,11 @@ from ml_lab.config import (
     SMOKE_TRAIN_ROWS,
     TARGET_NAME,
 )
-from ml_lab.data.synthetic import generate_smoke_data, split_smoke_data
+from ml_lab.data.synthetic import (
+    generate_smoke_data,
+    split_smoke_data,
+    write_smoke_data,
+)
 
 
 def test_generate_is_deterministic_for_fixed_seed():
@@ -87,3 +93,51 @@ def test_split_columns_match_source():
     train_df, test_df = split_smoke_data(df)
     assert list(train_df.columns) == [*FEATURE_NAMES, TARGET_NAME]
     assert list(test_df.columns) == [*FEATURE_NAMES, TARGET_NAME]
+
+
+def test_write_creates_expected_files(tmp_path):
+    write_smoke_data(dest=tmp_path)
+    assert (tmp_path / "train.csv").exists()
+    assert (tmp_path / "test.csv").exists()
+    assert (tmp_path / "split_manifest.json").exists()
+
+
+def test_write_returns_manifest_with_expected_keys(tmp_path):
+    manifest = write_smoke_data(dest=tmp_path)
+    assert manifest["seed"] == SMOKE_SEED
+    assert manifest["rows"] == SMOKE_ROWS
+    assert manifest["train_rows"] == SMOKE_TRAIN_ROWS
+    assert manifest["test_rows"] == SMOKE_TEST_ROWS
+    assert manifest["feature_names"] == list(FEATURE_NAMES)
+    assert manifest["target_name"] == TARGET_NAME
+    assert "train_sha256" in manifest
+    assert "test_sha256" in manifest
+
+
+def test_manifest_row_counts_match_csv_files(tmp_path):
+    manifest = write_smoke_data(dest=tmp_path)
+    train_df = pd.read_csv(tmp_path / "train.csv")
+    test_df = pd.read_csv(tmp_path / "test.csv")
+    assert manifest["train_rows"] == len(train_df)
+    assert manifest["test_rows"] == len(test_df)
+
+
+def test_manifest_feature_order_matches_csv_columns(tmp_path):
+    manifest = write_smoke_data(dest=tmp_path)
+    train_df = pd.read_csv(tmp_path / "train.csv")
+    assert manifest["feature_names"] == [
+        c for c in train_df.columns if c != TARGET_NAME
+    ]
+
+
+def test_manifest_on_disk_matches_returned_manifest(tmp_path):
+    manifest = write_smoke_data(dest=tmp_path)
+    on_disk = json.loads((tmp_path / "split_manifest.json").read_text())
+    assert on_disk == manifest
+
+
+def test_checksums_are_stable_across_regeneration(tmp_path):
+    first = write_smoke_data(dest=tmp_path / "run_a")
+    second = write_smoke_data(dest=tmp_path / "run_b")
+    assert first["train_sha256"] == second["train_sha256"]
+    assert first["test_sha256"] == second["test_sha256"]
