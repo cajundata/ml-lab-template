@@ -71,8 +71,8 @@ def train_smoke(
 
 
 def evaluate_smoke(
-    model_dir=MODELS_SMOKE_LATEST,
     data_dir=DATA_PROCESSED_SMOKE,
+    model_dir=MODELS_SMOKE_LATEST,
     reports_dir=REPORTS_SMOKE_LATEST,
     tracking_uri=MLRUNS_DIR,
 ) -> dict:

@@ -57,6 +57,7 @@ def test_lifecycle_one_run_holds_train_and_eval(tmp_path):
     assert run.data.params["model_type"] == "LogisticRegression"
     assert run.data.metrics["train_accuracy"] >= 0.95
     assert run.data.metrics["accuracy"] >= 0.95
+    assert run.data.metrics["f1"] >= 0.95
 
 
 def test_evaluate_smoke_without_train_run_id_raises(tmp_path):
