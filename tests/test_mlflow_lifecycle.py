@@ -25,7 +25,8 @@ def test_start_training_run_logs_params_and_metrics(tmp_path):
         tracking_uri=tmp_path / "mlruns",
         experiment_name=EXPERIMENT_NAME,
     )
-    run = mlflow.get_run(run_id)
+    client = mlflow.tracking.MlflowClient(tracking_uri=str(tmp_path / "mlruns"))
+    run = client.get_run(run_id)
     assert run.data.params["model_type"] == "LogisticRegression"
     assert run.data.params["random_seed"] == "20260706"
     assert run.data.metrics["train_accuracy"] == 1.0
@@ -39,6 +40,7 @@ def test_start_training_run_uses_named_experiment(tmp_path):
         tracking_uri=tmp_path / "mlruns",
         experiment_name=EXPERIMENT_NAME,
     )
-    run = mlflow.get_run(run_id)
-    experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+    client = mlflow.tracking.MlflowClient(tracking_uri=str(tmp_path / "mlruns"))
+    run = client.get_run(run_id)
+    experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
     assert run.info.experiment_id == experiment.experiment_id
