@@ -2,8 +2,9 @@ import json
 
 import mlflow
 import pytest
+from typer.testing import CliRunner
 
-from ml_lab.cli import evaluate_smoke, train_smoke
+from ml_lab.cli import app, evaluate_smoke, train_smoke
 
 
 def _dirs(tmp_path):
@@ -64,3 +65,10 @@ def test_evaluate_smoke_without_train_run_id_raises(tmp_path):
     d = _dirs(tmp_path)
     with pytest.raises(FileNotFoundError):
         evaluate_smoke(**d)
+
+
+def test_cli_exposes_train_and_evaluate_commands():
+    result = CliRunner().invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "train-smoke" in result.output
+    assert "evaluate-smoke" in result.output

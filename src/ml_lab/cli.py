@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import typer
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score
 
@@ -92,3 +93,18 @@ def evaluate_smoke(
     }
     log_evaluation_metrics(run_id, eval_metrics, tracking_uri=tracking_uri)
     return metrics
+
+
+app = typer.Typer()
+
+
+@app.command("train-smoke")
+def train_smoke_command() -> None:
+    run_id = train_smoke()
+    typer.echo(f"Training run: {run_id}")
+
+
+@app.command("evaluate-smoke")
+def evaluate_smoke_command() -> None:
+    metrics = evaluate_smoke()
+    typer.echo(f"Evaluation metrics: {metrics}")
