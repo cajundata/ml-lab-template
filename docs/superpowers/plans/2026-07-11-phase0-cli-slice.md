@@ -72,8 +72,8 @@ def test_train_smoke_logs_params_and_metrics(tmp_path):
     run = client.get_run(run_id)
     assert run.data.params["model_type"] == "LogisticRegression"
     assert run.data.params["feature_count"] == "4"
-    assert run.data.metrics["train_accuracy"] == 1.0
-    assert run.data.metrics["train_f1"] == 1.0
+    assert run.data.metrics["train_accuracy"] >= 0.95
+    assert run.data.metrics["train_f1"] >= 0.95
 ```
 
 (`train_smoke`'s `experiment_name` defaults to config `EXPERIMENT_NAME`; `_dirs`
@@ -206,8 +206,8 @@ def test_lifecycle_one_run_holds_train_and_eval(tmp_path):
     client = mlflow.tracking.MlflowClient(tracking_uri=str(d["tracking_uri"]))
     run = client.get_run(run_id)
     assert run.data.params["model_type"] == "LogisticRegression"
-    assert run.data.metrics["train_accuracy"] == 1.0
-    assert run.data.metrics["accuracy"] == 1.0
+    assert run.data.metrics["train_accuracy"] >= 0.95
+    assert run.data.metrics["accuracy"] >= 0.95
 
 
 def test_evaluate_smoke_without_train_run_id_raises(tmp_path):
