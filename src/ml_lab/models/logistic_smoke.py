@@ -34,6 +34,7 @@ class SmokeModel:
         return self.estimator.predict(df[self.schema["feature_names"]])
 
     def predict_proba(self, df: pd.DataFrame):
+        """Return P(y=1) per row. Assumes estimator classes are [0, 1]."""
         self._validate_features(df)
         return self.estimator.predict_proba(
             df[self.schema["feature_names"]]
