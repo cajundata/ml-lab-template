@@ -1,8 +1,9 @@
 import json
 
 import mlflow
+import pytest
 
-from ml_lab.cli import train_smoke
+from ml_lab.cli import evaluate_smoke, train_smoke
 
 
 def _dirs(tmp_path):
@@ -41,3 +42,24 @@ def test_train_smoke_logs_params_and_metrics(tmp_path):
     assert run.data.params["feature_count"] == "4"
     assert run.data.metrics["train_accuracy"] >= 0.95
     assert run.data.metrics["train_f1"] >= 0.95
+
+
+def test_lifecycle_one_run_holds_train_and_eval(tmp_path):
+    d = _dirs(tmp_path)
+    run_id = train_smoke(**d)
+    metrics = evaluate_smoke(**d)
+    assert (d["reports_dir"] / "metrics.json").exists()
+    assert (d["reports_dir"] / "predictions.csv").exists()
+    assert metrics["accuracy"] >= 0.95
+    assert metrics["f1"] >= 0.95
+    client = mlflow.tracking.MlflowClient(tracking_uri=str(d["tracking_uri"]))
+    run = client.get_run(run_id)
+    assert run.data.params["model_type"] == "LogisticRegression"
+    assert run.data.metrics["train_accuracy"] >= 0.95
+    assert run.data.metrics["accuracy"] >= 0.95
+
+
+def test_evaluate_smoke_without_train_run_id_raises(tmp_path):
+    d = _dirs(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        evaluate_smoke(**d)

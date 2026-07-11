@@ -14,8 +14,12 @@ from ml_lab.config import (
     TARGET_NAME,
 )
 from ml_lab.data.synthetic import write_smoke_data
+from ml_lab.evaluation.logistic_eval import evaluate_smoke_model
 from ml_lab.models.logistic_smoke import train_smoke_model
-from ml_lab.tracking.mlflow_utils import start_training_run
+from ml_lab.tracking.mlflow_utils import (
+    log_evaluation_metrics,
+    start_training_run,
+)
 
 
 def train_smoke(
@@ -64,3 +68,27 @@ def train_smoke(
         run_id + "\n", encoding="utf-8"
     )
     return run_id
+
+
+def evaluate_smoke(
+    model_dir=MODELS_SMOKE_LATEST,
+    data_dir=DATA_PROCESSED_SMOKE,
+    reports_dir=REPORTS_SMOKE_LATEST,
+    tracking_uri=MLRUNS_DIR,
+) -> dict:
+    """Evaluate the saved model and append eval metrics to the training run."""
+    run_id_path = Path(reports_dir) / "train_run_id.txt"
+    if not run_id_path.exists():
+        raise FileNotFoundError(
+            f"train_run_id.txt not found at {run_id_path}; run train first."
+        )
+    run_id = run_id_path.read_text(encoding="utf-8").strip()
+
+    metrics = evaluate_smoke_model(
+        model_dir=model_dir, data_dir=data_dir, reports_dir=reports_dir
+    )
+    eval_metrics = {
+        k: metrics[k] for k in ("accuracy", "precision", "recall", "f1")
+    }
+    log_evaluation_metrics(run_id, eval_metrics, tracking_uri=tracking_uri)
+    return metrics
