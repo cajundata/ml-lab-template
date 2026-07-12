@@ -69,4 +69,5 @@ def test_run_ssh_builds_argv(monkeypatch):
     assert "root@1.2.3.4" in argv
     assert argv[-1] == "true"
     assert "BatchMode=yes" in argv
+    assert "IdentitiesOnly=yes" in argv  # only the -i key authenticates, not agent keys
     assert "StrictHostKeyChecking=accept-new" in argv

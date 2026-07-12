@@ -17,9 +17,11 @@ from ml_lab.gpu.constants import (
     SSH_TIMEOUT_SECONDS,
 )
 
-# Hardened, non-interactive: never prompt, bound each connect, don't pollute known_hosts.
+# Hardened, non-interactive: never prompt, use only the -i key (not agent keys),
+# bound each connect, don't pollute known_hosts.
 SSH_OPTS = [
     "-o", "BatchMode=yes",
+    "-o", "IdentitiesOnly=yes",
     "-o", "StrictHostKeyChecking=accept-new",
     "-o", "ConnectTimeout=15",
     "-o", "UserKnownHostsFile=/dev/null",
