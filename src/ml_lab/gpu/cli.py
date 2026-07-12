@@ -6,6 +6,7 @@
 import typer
 
 from ml_lab.gpu import audit as audit_mod
+from ml_lab.gpu.lifecycle import gpu_up
 from ml_lab.gpu.teardown import destroy_and_verify
 
 app = typer.Typer(help="DigitalOcean GPU-lab lifecycle (Phase 0 safety spine).")
@@ -26,3 +27,18 @@ def down_command(
 ) -> None:
     """Destroy a droplet and verify it is gone and audit is clean."""
     destroy_and_verify(droplet_id)
+
+
+@app.command("up")
+def up_command(
+    ttl_seconds: int = typer.Option(
+        None,
+        "--ttl-seconds",
+        help="Short-fuse self-destruct test; bypasses the benchmark-budget check.",
+    ),
+) -> None:
+    """Create a GPU droplet and hand it off once bootstrap is verified (leaves it alive)."""
+    if ttl_seconds is None:
+        gpu_up()
+    else:
+        gpu_up(ttl_seconds=ttl_seconds, enforce_budget=False)

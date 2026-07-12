@@ -48,3 +48,25 @@ def test_audit_exits_nonzero_when_dirty(monkeypatch):
     result = CliRunner().invoke(gpu_cli.app, ["audit"])
     assert result.exit_code == 1
     assert "DIRTY" in result.output
+
+
+def test_help_names_up():
+    result = CliRunner().invoke(gpu_cli.app, ["--help"])
+    assert result.exit_code == 0
+    assert "up" in result.output
+
+
+def test_up_default_calls_gpu_up_with_defaults(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(gpu_cli, "gpu_up", lambda **k: seen.setdefault("kwargs", k))
+    result = CliRunner().invoke(gpu_cli.app, ["up"])
+    assert result.exit_code == 0
+    assert seen["kwargs"] == {}  # no --ttl-seconds → gpu_up() defaults
+
+
+def test_up_short_ttl_bypasses_budget(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(gpu_cli, "gpu_up", lambda **k: seen.setdefault("kwargs", k))
+    result = CliRunner().invoke(gpu_cli.app, ["up", "--ttl-seconds", "900"])
+    assert result.exit_code == 0
+    assert seen["kwargs"] == {"ttl_seconds": 900, "enforce_budget": False}
