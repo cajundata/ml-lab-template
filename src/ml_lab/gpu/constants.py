@@ -15,6 +15,8 @@ BENCHMARK_TIMEOUT_SECONDS = 1800
 DESTROY_POLL_TIMEOUT_SECONDS = 600
 SELF_DESTRUCT_RETRY_SECONDS = 300
 DESTROY_POLL_INTERVAL_SECONDS = 10  # cadence for absence polling (added; not in plan)
+REMOTE_POLL_INTERVAL_SECONDS = 15  # cadence for ssh-readiness / bootstrap-marker polling
+SSH_ATTEMPT_TIMEOUT_SECONDS = 30  # subprocess timeout bounding a single ssh attempt
 
 # Identity / audit matching
 DROPLET_NAME_PREFIX = "ml-lab-gpu-"
