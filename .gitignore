@@ -13,3 +13,5 @@ artifacts/*
 !**/README.md
 .master_plan/
 mlflow.db
+
+.superpowers/
