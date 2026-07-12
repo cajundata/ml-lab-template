@@ -98,6 +98,24 @@ def test_gpu_up_ssh_timeout_destroys_and_reraises(monkeypatch):
     assert destroyed["id"] == 42
 
 
+def test_gpu_up_bootstrap_timeout_destroys_and_reraises(monkeypatch):
+    destroyed = {}
+    monkeypatch.setattr(
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r"}
+    )
+    monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
+    monkeypatch.setattr(lifecycle, "wait_for_ssh", lambda ip, **k: None)
+
+    def boom(ip, **k):  # the self-destruct timer never verifies
+        raise RemoteError("bootstrap not verified")
+
+    monkeypatch.setattr(lifecycle, "wait_for_bootstrap", boom)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", lambda did: destroyed.setdefault("id", did))
+    with pytest.raises(RemoteError):
+        lifecycle.gpu_up(env=_env(), now=1000.0)
+    assert destroyed["id"] == 42
+
+
 def test_gpu_up_keyboardinterrupt_after_create_destroys(monkeypatch):
     destroyed = {}
     monkeypatch.setattr(
