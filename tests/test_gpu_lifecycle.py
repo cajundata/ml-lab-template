@@ -245,7 +245,7 @@ def test_gpu_run_returns_benchmark_exit_code_and_still_uploads(monkeypatch):
 
 def test_gpu_run_benchmark_timeout_destroys_and_reraises(monkeypatch):
     destroyed = {}
-    _stub_run_seams(monkeypatch)
+    order = _stub_run_seams(monkeypatch)
 
     def boom(ip, rid, **k):
         raise RemoteError("benchmark timed out")
@@ -255,13 +255,14 @@ def test_gpu_run_benchmark_timeout_destroys_and_reraises(monkeypatch):
     with pytest.raises(RemoteError):
         lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
     assert destroyed["id"] == 42
+    assert "pull" not in order and "upload" not in order  # a raised benchmark skips pull+upload
 
 
 def test_gpu_run_upload_failure_still_destroys(monkeypatch):
     from ml_lab.gpu.spaces import SpacesError
 
     destroyed = {}
-    _stub_run_seams(monkeypatch)
+    order = _stub_run_seams(monkeypatch)
 
     def boom(dest, rid, **k):
         raise SpacesError("upload failed")
@@ -271,6 +272,7 @@ def test_gpu_run_upload_failure_still_destroys(monkeypatch):
     with pytest.raises(SpacesError):
         lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
     assert destroyed["id"] == 42  # destroy beats artifact preservation
+    assert "pull" in order  # bundle was pulled before the upload failed
 
 
 def test_gpu_run_preflight_spaces_failure_creates_nothing(monkeypatch):

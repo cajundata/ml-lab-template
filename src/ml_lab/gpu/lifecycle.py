@@ -1,8 +1,11 @@
-"""The gpu-up orchestration: create, verify readiness, hand off — or tear down.
+"""GPU lifecycle orchestration: gpu_up (debug) and gpu_run (full benchmark).
 
-Invariant: once a droplet exists, every non-clean exit routes through
-destroy_and_verify; a fully verified success leaves it alive (the debug path).
-All seams (do_client, remote, create, teardown) are mocked in tests.
+Both share the create → wait-for-IP → wait-for-SSH → wait-for-bootstrap spine.
+They differ at the end: gpu_up LEAVES a verified droplet alive (debug path) and
+destroys only on a non-clean exit; gpu_run runs the benchmark, pulls + uploads the
+bundle, and ALWAYS destroys in a finally. Once a droplet exists, every teardown
+routes through destroy_and_verify. All seams (do_client, remote, create, benchmark,
+spaces, teardown) are mocked in tests.
 """
 
 from __future__ import annotations
