@@ -146,8 +146,8 @@ def create_droplet(
     user_data_path = None
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
-            handle.write(user_data)
             user_data_path = handle.name
+            handle.write(user_data)
         args = [
             "compute",
             "droplet",
