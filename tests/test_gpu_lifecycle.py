@@ -3,6 +3,7 @@ import pytest
 from ml_lab.gpu import do_client, gpu_env, lifecycle
 from ml_lab.gpu.create import LabDropletExistsError
 from ml_lab.gpu.remote import RemoteError
+from ml_lab.gpu.teardown import TeardownError
 
 
 class _FakeClock:
@@ -141,3 +142,23 @@ def test_gpu_up_threads_ttl_and_enforce_budget(monkeypatch):
     assert seen["ttl_seconds"] == 900
     assert seen["enforce_budget"] is False
     assert seen["ssh_key_ids"] == ["k1"]
+
+
+def test_gpu_up_teardown_failure_propagates_and_chains_original(monkeypatch):
+    monkeypatch.setattr(
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r"}
+    )
+    monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
+
+    def ssh_boom(ip, **k):
+        raise RemoteError("unreachable")
+
+    def teardown_boom(did):
+        raise TeardownError("droplet still present")
+
+    monkeypatch.setattr(lifecycle, "wait_for_ssh", ssh_boom)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", teardown_boom)
+    # A failed teardown is the louder alarm: TeardownError propagates, original chained.
+    with pytest.raises(TeardownError) as exc:
+        lifecycle.gpu_up(env=_env(), now=1000.0)
+    assert isinstance(exc.value.__context__, RemoteError)

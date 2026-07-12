@@ -73,7 +73,9 @@ def gpu_up(*, ttl_seconds=DEFAULT_TTL_SECONDS, enforce_budget=True, env=None, no
 
     On a fully verified success the droplet is LEFT ALIVE (debug path). On any
     post-create exception (including KeyboardInterrupt) it is destroyed and the
-    error re-raised. A preflight failure creates no droplet, so nothing is destroyed.
+    error re-raised — unless destroy_and_verify itself fails, in which case that
+    TeardownError propagates instead (the louder alarm; the original is chained as
+    its __context__). A preflight failure creates no droplet, so nothing is destroyed.
     """
     if env is None:
         env = load_gpu_env()
