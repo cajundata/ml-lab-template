@@ -89,3 +89,39 @@ def test_run_benchmark_creates_run_dir(tmp_path):
     }
     gpu_benchmark.run_benchmark("R5", str(tmp_path), probes)
     assert (tmp_path / "R5").is_dir()
+
+
+def test_default_probes_names_match_spec():
+    probes = gpu_benchmark._default_probes("facebook/opt-125m")
+    assert set(probes) == set(gpu_benchmark.PROBE_SPEC)
+
+
+def test_main_exits_with_run_benchmark_code(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        gpu_benchmark, "_default_probes",
+        lambda model_id: {
+            "torch_cuda": lambda: {"ok": True},
+            "vllm_smoke": lambda: {"ok": True},
+            "system": lambda: {"ok": True},
+            "nvidia_smi": lambda: "smi",
+        },
+    )
+    with pytest.raises(SystemExit) as exc:
+        gpu_benchmark.main(["--run-id", "R9", "--artifacts-root", str(tmp_path)])
+    assert exc.value.code == 0
+    assert (tmp_path / "R9" / "benchmark.json").exists()
+
+
+def test_main_propagates_smoke_model_id(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_defaults(model_id):
+        captured["model_id"] = model_id
+        return {name: (lambda: {"ok": True}) for name in gpu_benchmark.PROBE_SPEC}
+
+    monkeypatch.setattr(gpu_benchmark, "_default_probes", fake_defaults)
+    with pytest.raises(SystemExit):
+        gpu_benchmark.main(
+            ["--run-id", "R10", "--smoke-model-id", "my/model", "--artifacts-root", str(tmp_path)]
+        )
+    assert captured["model_id"] == "my/model"
