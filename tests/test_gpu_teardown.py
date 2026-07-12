@@ -122,6 +122,11 @@ def test_sigint_restored_after_failure(monkeypatch):
 
 
 # --- Heavier: a real subprocess proves SIGINT cannot abort an armed teardown ---
+#
+# The child keeps REAL time.sleep calls (only the interval is shrunk) so the poll
+# loop spends wall-clock time — that is the window during which the parent fires
+# SIGINT. Do NOT no-op the child's sleep: the loop would finish before the signal
+# lands and the test would silently stop proving anything.
 
 _SIGINT_RUNNER = '''\
 from ml_lab.gpu import teardown, do_client, audit
@@ -143,6 +148,7 @@ do_client.destroy_droplet = lambda droplet_id: "accepted"
 audit.collect_audit = lambda now=None: audit.AuditReport()
 
 teardown.destroy_and_verify(12345)
+print("CALLS:" + str(_calls["n"]), flush=True)
 print("DONE", flush=True)
 '''
 
@@ -177,3 +183,9 @@ def test_sigint_does_not_abort_teardown_subprocess(tmp_path):
     out, _ = proc.communicate(timeout=30)
     assert proc.returncode == 0, f"process died (rc={proc.returncode}); output:\n{out}"
     assert "DONE" in out
+    # Prove the poll loop actually ran (so SIGINT had a live window to land in).
+    calls = next(
+        (int(line.split(":", 1)[1]) for line in out.splitlines() if line.startswith("CALLS:")),
+        0,
+    )
+    assert calls >= 2, f"poll loop did not run enough to expose a SIGINT window; out:\n{out}"
