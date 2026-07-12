@@ -162,3 +162,11 @@ def test_create_droplet_omits_ssh_keys_when_none(monkeypatch):
         name="n", region="nyc2", size="s", image="i", tags=["ml-lab"], user_data="#cloud-config\n"
     )
     assert "--ssh-keys" not in captured["argv"]
+
+
+def test_create_droplet_raises_when_doctl_returns_nothing(monkeypatch):
+    monkeypatch.setattr(do_client.subprocess, "run", lambda *a, **k: _completed(stdout=""))
+    with pytest.raises(do_client.DOClientError):
+        do_client.create_droplet(
+            name="n", region="r", size="s", image="i", tags=["ml-lab"], user_data="#cloud-config\n"
+        )

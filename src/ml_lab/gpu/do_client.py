@@ -143,10 +143,11 @@ def create_droplet(
     is passed by file. NO --wait, so the id returns immediately for the create-time
     identity print. Runs through _run_doctl, which appends -o json and check=True.
     """
-    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
-        handle.write(user_data)
-        user_data_path = handle.name
+    user_data_path = None
     try:
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
+            handle.write(user_data)
+            user_data_path = handle.name
         args = [
             "compute",
             "droplet",
@@ -167,8 +168,11 @@ def create_droplet(
             args += ["--ssh-keys", ",".join(ssh_key_ids)]
         result = _run_doctl(args)
     finally:
-        os.unlink(user_data_path)
-    return result[0] if isinstance(result, list) else result
+        if user_data_path:
+            os.unlink(user_data_path)
+    if not result:
+        raise DOClientError("create_droplet: doctl returned no droplet data")
+    return result[0]
 
 
 def list_image_slugs() -> list[str]:
