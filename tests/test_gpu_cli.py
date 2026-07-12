@@ -70,3 +70,21 @@ def test_up_short_ttl_bypasses_budget(monkeypatch):
     result = CliRunner().invoke(gpu_cli.app, ["up", "--ttl-seconds", "900"])
     assert result.exit_code == 0
     assert seen["kwargs"] == {"ttl_seconds": 900, "enforce_budget": False}
+
+
+def test_help_names_run():
+    result = CliRunner().invoke(gpu_cli.app, ["--help"])
+    assert result.exit_code == 0
+    assert "run" in result.output
+
+
+def test_run_exits_zero_when_gpu_run_returns_zero(monkeypatch):
+    monkeypatch.setattr(gpu_cli, "gpu_run", lambda: 0)
+    result = CliRunner().invoke(gpu_cli.app, ["run"])
+    assert result.exit_code == 0
+
+
+def test_run_exits_with_gpu_run_nonzero_code(monkeypatch):
+    monkeypatch.setattr(gpu_cli, "gpu_run", lambda: 7)
+    result = CliRunner().invoke(gpu_cli.app, ["run"])
+    assert result.exit_code == 7

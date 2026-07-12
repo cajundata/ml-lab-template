@@ -6,7 +6,7 @@
 import typer
 
 from ml_lab.gpu import audit as audit_mod
-from ml_lab.gpu.lifecycle import gpu_up
+from ml_lab.gpu.lifecycle import gpu_run, gpu_up
 from ml_lab.gpu.teardown import destroy_and_verify
 
 app = typer.Typer(help="DigitalOcean GPU-lab lifecycle (Phase 0 safety spine).")
@@ -42,3 +42,9 @@ def up_command(
         gpu_up()
     else:
         gpu_up(ttl_seconds=ttl_seconds, enforce_budget=False)
+
+
+@app.command("run")
+def run_command() -> None:
+    """Full GPU lifecycle: create, benchmark, pull, upload to Spaces, always destroy."""
+    raise typer.Exit(code=gpu_run())
