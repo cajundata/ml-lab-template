@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ml_lab.gpu.constants import SPACES_ENDPOINT, SPACES_KEY_PREFIX
+from ml_lab.gpu.constants import SPACES_ENDPOINT, SPACES_KEY_PREFIX, SPACES_REGION
 
 
 class SpacesError(RuntimeError):
@@ -23,6 +23,7 @@ def _make_client(env):
 
     return boto3.client(
         "s3",
+        region_name=SPACES_REGION,
         endpoint_url=SPACES_ENDPOINT,
         aws_access_key_id=env.access_key,
         aws_secret_access_key=env.secret_key,

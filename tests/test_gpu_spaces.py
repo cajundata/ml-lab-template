@@ -78,3 +78,4 @@ def test_default_client_uses_spaces_endpoint_and_credentials(monkeypatch):
     assert seen["endpoint_url"] == spaces.SPACES_ENDPOINT
     assert seen["aws_access_key_id"] == "AK"
     assert seen["aws_secret_access_key"] == "SK"
+    assert seen["region_name"] == spaces.SPACES_REGION
