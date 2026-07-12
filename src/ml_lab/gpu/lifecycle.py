@@ -20,9 +20,11 @@ from ml_lab.gpu.constants import (
     SELF_DESTRUCT_RETRY_SECONDS,
     SSH_TIMEOUT_SECONDS,
 )
+from ml_lab.gpu.benchmark import deliver_and_run_benchmark, pull_artifacts
 from ml_lab.gpu.create import create_lab_droplet, generate_run_id
-from ml_lab.gpu.gpu_env import load_gpu_env
+from ml_lab.gpu.gpu_env import load_gpu_env, load_spaces_env
 from ml_lab.gpu.remote import RemoteError, wait_for_bootstrap, wait_for_ssh
+from ml_lab.gpu.spaces import upload_bundle
 from ml_lab.gpu.teardown import destroy_and_verify
 
 
@@ -105,3 +107,48 @@ def gpu_up(*, ttl_seconds=DEFAULT_TTL_SECONDS, enforce_budget=True, env=None, no
         if droplet_id is not None:
             destroy_and_verify(droplet_id)
         raise
+
+
+def gpu_run(*, ttl_seconds=DEFAULT_TTL_SECONDS, env=None, spaces=None, now=None) -> int:
+    """Full lifecycle: create, benchmark, pull, upload to Spaces, always destroy.
+
+    Returns the benchmark's exit code. A completed-but-failed benchmark still pulls
+    and uploads the partial bundle before the finally destroys. Any raised failure
+    (SSH/bootstrap/benchmark timeout, transport, or upload) destroys then propagates —
+    destroy beats artifact preservation. Preflight (env + Spaces credentials) runs
+    before any droplet is created, so a misconfiguration strands nothing. If
+    destroy_and_verify itself fails, that TeardownError is the louder alarm and
+    overrides any in-flight error (chained as __context__).
+    """
+    if env is None:
+        env = load_gpu_env()
+    if spaces is None:
+        spaces = load_spaces_env()
+    run_now = now if now is not None else time.time()
+    run_id = generate_run_id(run_now)
+    user_data = render_cloud_init(
+        run_id=run_id, destroy_token=env.destroy_token, ttl_seconds=ttl_seconds
+    )
+
+    droplet_id = None
+    try:
+        result = create_lab_droplet(
+            user_data,
+            ttl_seconds=ttl_seconds,
+            enforce_budget=True,
+            ssh_key_ids=env.ssh_key_ids,
+            run_id=run_id,
+            now=run_now,
+        )
+        droplet_id = result["id"]
+        ip = wait_for_public_ip(droplet_id, timeout=SSH_TIMEOUT_SECONDS)
+        wait_for_ssh(ip, key_path=env.ssh_key_path, timeout=SSH_TIMEOUT_SECONDS)
+        wait_for_bootstrap(ip, key_path=env.ssh_key_path, timeout=BOOTSTRAP_TIMEOUT_SECONDS)
+        code = deliver_and_run_benchmark(ip, run_id, key_path=env.ssh_key_path)
+        dest = pull_artifacts(ip, run_id, key_path=env.ssh_key_path)
+        uri = upload_bundle(dest, run_id, env=spaces)
+        print(f"Uploaded benchmark bundle to {uri}", flush=True)
+        return code
+    finally:
+        if droplet_id is not None:
+            destroy_and_verify(droplet_id)

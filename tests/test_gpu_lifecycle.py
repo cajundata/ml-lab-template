@@ -180,3 +180,126 @@ def test_gpu_up_teardown_failure_propagates_and_chains_original(monkeypatch):
     with pytest.raises(TeardownError) as exc:
         lifecycle.gpu_up(env=_env(), now=1000.0)
     assert isinstance(exc.value.__context__, RemoteError)
+
+
+# ---------------------------------------------------------------------------
+# gpu_run tests
+# ---------------------------------------------------------------------------
+
+def _spaces_env():
+    return gpu_env.SpacesEnv(access_key="AK", secret_key="SK", bucket="bkt")
+
+
+def _stub_run_seams(monkeypatch, *, benchmark_code=0, order=None):
+    """Stub create + waits + driver + upload + teardown; optionally record call order."""
+    order = order if order is not None else []
+
+    def create(ud, **k):
+        order.append("create")
+        return {"id": 42, "name": "n", "run_id": "r"}
+
+    monkeypatch.setattr(lifecycle, "create_lab_droplet", create)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_public_ip",
+        lambda did, **k: (order.append("ip"), "1.2.3.4")[1],
+    )
+    monkeypatch.setattr(lifecycle, "wait_for_ssh", lambda ip, **k: order.append("ssh"))
+    monkeypatch.setattr(lifecycle, "wait_for_bootstrap", lambda ip, **k: order.append("bootstrap"))
+    monkeypatch.setattr(
+        lifecycle, "deliver_and_run_benchmark",
+        lambda ip, rid, **k: (order.append("benchmark"), benchmark_code)[1],
+    )
+    monkeypatch.setattr(
+        lifecycle, "pull_artifacts",
+        lambda ip, rid, **k: (order.append("pull"), "/artifacts/r")[1],
+    )
+    monkeypatch.setattr(
+        lifecycle, "upload_bundle",
+        lambda dest, rid, **k: (order.append("upload"), "s3://bkt/ml-pathway/phase0/r/")[1],
+    )
+    return order
+
+
+def test_gpu_run_happy_full_order_and_destroys(monkeypatch, capsys):
+    destroyed = {}
+    order = _stub_run_seams(monkeypatch)
+    monkeypatch.setattr(
+        lifecycle, "destroy_and_verify",
+        lambda did: (order.append("destroy"), destroyed.setdefault("id", did)),
+    )
+    code = lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
+    assert code == 0
+    assert order == ["create", "ip", "ssh", "bootstrap", "benchmark", "pull", "upload", "destroy"]
+    assert destroyed["id"] == 42  # gpu_run ALWAYS destroys, even on success
+    assert "s3://bkt/ml-pathway/phase0/r/" in capsys.readouterr().out
+
+
+def test_gpu_run_returns_benchmark_exit_code_and_still_uploads(monkeypatch):
+    order = _stub_run_seams(monkeypatch, benchmark_code=7)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", lambda did: order.append("destroy"))
+    code = lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
+    assert code == 7  # completed-but-failed benchmark surfaces its code
+    assert "pull" in order and "upload" in order  # partial bundle still pulled + uploaded
+    assert order[-1] == "destroy"
+
+
+def test_gpu_run_benchmark_timeout_destroys_and_reraises(monkeypatch):
+    destroyed = {}
+    _stub_run_seams(monkeypatch)
+
+    def boom(ip, rid, **k):
+        raise RemoteError("benchmark timed out")
+
+    monkeypatch.setattr(lifecycle, "deliver_and_run_benchmark", boom)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", lambda did: destroyed.setdefault("id", did))
+    with pytest.raises(RemoteError):
+        lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
+    assert destroyed["id"] == 42
+
+
+def test_gpu_run_upload_failure_still_destroys(monkeypatch):
+    from ml_lab.gpu.spaces import SpacesError
+
+    destroyed = {}
+    _stub_run_seams(monkeypatch)
+
+    def boom(dest, rid, **k):
+        raise SpacesError("upload failed")
+
+    monkeypatch.setattr(lifecycle, "upload_bundle", boom)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", lambda did: destroyed.setdefault("id", did))
+    with pytest.raises(SpacesError):
+        lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
+    assert destroyed["id"] == 42  # destroy beats artifact preservation
+
+
+def test_gpu_run_preflight_spaces_failure_creates_nothing(monkeypatch):
+    created = {}
+    monkeypatch.setattr(gpu_env, "load_dotenv", lambda: None)
+    monkeypatch.delenv("SPACES_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("SPACES_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("SPACES_BUCKET", raising=False)
+    monkeypatch.setattr(
+        lifecycle, "create_lab_droplet",
+        lambda ud, **k: created.setdefault("hit", True) or {"id": 42, "name": "n", "run_id": "r"},
+    )
+    # env supplied, spaces left to load from the (empty) environment → fails before create.
+    with pytest.raises(gpu_env.GpuEnvError):
+        lifecycle.gpu_run(env=_env(), now=1000.0)
+    assert "hit" not in created
+
+
+def test_gpu_run_teardown_failure_overrides_benchmark_error(monkeypatch):
+    _stub_run_seams(monkeypatch)
+
+    def bench_boom(ip, rid, **k):
+        raise RemoteError("benchmark timed out")
+
+    def teardown_boom(did):
+        raise TeardownError("droplet still present")
+
+    monkeypatch.setattr(lifecycle, "deliver_and_run_benchmark", bench_boom)
+    monkeypatch.setattr(lifecycle, "destroy_and_verify", teardown_boom)
+    with pytest.raises(TeardownError) as exc:
+        lifecycle.gpu_run(env=_env(), spaces=_spaces_env(), now=1000.0)
+    assert isinstance(exc.value.__context__, RemoteError)  # original chained
