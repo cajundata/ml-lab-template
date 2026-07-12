@@ -149,7 +149,7 @@ def format_report(report: AuditReport) -> str:
             f"    id: {d.id}  name: {d.name}",
             f"    status: {d.status}  region: {d.region}  size: {d.size}",
             f"    image: {d.image}  public-ip: {d.public_ip}  age: {d.age}",
-            f"    ttl-expiry: {d.ttl_expiry}{overdue}",
+            f"    ttl-expiry: {d.ttl_expiry or '—'}{overdue}",
             f"    destroy: {d.destroy_command}",
         ]
     lines += [

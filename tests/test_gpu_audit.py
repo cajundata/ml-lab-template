@@ -73,3 +73,17 @@ def test_tagged_volume_makes_report_dirty(monkeypatch):
     monkeypatch.setattr(do_client, "list_lab_volumes", lambda: [{"id": "v1", "tags": ["ml-lab"]}])
     report = audit.collect_audit(now=1.0)
     assert audit.is_clean(report) is False
+
+
+def test_format_report_no_ttl_tag_shows_dash(monkeypatch):
+    _all_empty(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_lab_droplets", lambda: [_droplet(tags=["ml-lab"])]
+    )
+    report = audit.collect_audit(now=1.0)
+    info = report.droplets[0]
+    assert info.ttl_expiry is None
+    assert info.overdue is False
+    text = audit.format_report(report)
+    assert "ttl-expiry: —" in text
+    assert "ttl-expiry: None" not in text
