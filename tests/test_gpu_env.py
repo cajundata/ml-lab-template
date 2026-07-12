@@ -25,3 +25,16 @@ def test_load_gpu_env_missing_lists_every_var(monkeypatch):
     assert "DO_DROPLET_DESTROY_TOKEN" in msg
     assert "DO_SSH_KEY_IDS" in msg
     assert "DO_SSH_KEY_PATH" in msg
+
+
+def test_load_gpu_env_partial_missing_names_only_the_absent(monkeypatch):
+    monkeypatch.setattr(gpu_env, "load_dotenv", lambda: None)
+    monkeypatch.setenv("DO_DROPLET_DESTROY_TOKEN", "tok")  # present
+    monkeypatch.setenv("DO_SSH_KEY_IDS", "k1")  # present
+    monkeypatch.delenv("DO_SSH_KEY_PATH", raising=False)  # missing
+    with pytest.raises(gpu_env.GpuEnvError) as exc:
+        gpu_env.load_gpu_env()
+    msg = str(exc.value)
+    assert "DO_SSH_KEY_PATH" in msg
+    assert "DO_DROPLET_DESTROY_TOKEN" not in msg  # present vars are not named
+    assert "DO_SSH_KEY_IDS" not in msg
