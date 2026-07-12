@@ -123,3 +123,19 @@ def list_lab_reserved_ips() -> list[dict]:
 
 def list_lab_load_balancers() -> list[dict]:
     return [lb for lb in _run_doctl(["compute", "load-balancer", "list"]) if _has_lab_tag(lb)]
+
+
+def list_region_slugs() -> list[str]:
+    return [r["slug"] for r in _run_doctl(["compute", "region", "list"]) if r.get("available")]
+
+
+def list_sizes() -> list[dict]:
+    return _run_doctl(["compute", "size", "list"])
+
+
+def list_image_slugs() -> list[str]:
+    return [
+        i["slug"]
+        for i in _run_doctl(["compute", "image", "list", "--public"])
+        if i.get("slug")
+    ]

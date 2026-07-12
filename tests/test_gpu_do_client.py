@@ -94,3 +94,23 @@ def test_probe_destroy_token_missing_env_raises(monkeypatch):
     monkeypatch.delenv("DO_DROPLET_DESTROY_TOKEN", raising=False)
     with pytest.raises(DOClientError):
         do_client.probe_destroy_token()
+
+
+def test_list_region_slugs_returns_available_only(monkeypatch):
+    payload = '[{"slug":"nyc2","available":true},{"slug":"sfo1","available":false}]'
+    monkeypatch.setattr(do_client.subprocess, "run", lambda *a, **k: _completed(stdout=payload))
+    assert do_client.list_region_slugs() == ["nyc2"]
+
+
+def test_list_sizes_returns_raw_dicts(monkeypatch):
+    payload = '[{"slug":"gpu-4000adax1-20gb","regions":["nyc2"]}]'
+    monkeypatch.setattr(do_client.subprocess, "run", lambda *a, **k: _completed(stdout=payload))
+    sizes = do_client.list_sizes()
+    assert sizes[0]["slug"] == "gpu-4000adax1-20gb"
+    assert sizes[0]["regions"] == ["nyc2"]
+
+
+def test_list_image_slugs_filters_null_slugs(monkeypatch):
+    payload = '[{"slug":"gpu-h100x1-base"},{"slug":null},{"slug":"other"}]'
+    monkeypatch.setattr(do_client.subprocess, "run", lambda *a, **k: _completed(stdout=payload))
+    assert do_client.list_image_slugs() == ["gpu-h100x1-base", "other"]
