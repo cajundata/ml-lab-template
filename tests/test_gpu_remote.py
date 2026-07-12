@@ -118,3 +118,64 @@ def test_wait_for_bootstrap_ignores_malformed_json(monkeypatch):
         remote.wait_for_bootstrap(
             "1.2.3.4", key_path="/key", timeout=30, now=clock.now, sleep=clock.sleep
         )
+
+
+def test_run_scp_builds_argv(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, *a, **k):
+        captured["argv"] = argv
+        return _completed(returncode=0)
+
+    monkeypatch.setattr(remote.subprocess, "run", fake_run)
+    remote._run_scp(["/tmp/x", "root@1.2.3.4:/remote/x"], key_path="/key", timeout=120)
+    argv = captured["argv"]
+    assert argv[0] == "scp"
+    assert "-i" in argv and argv[argv.index("-i") + 1] == "/key"
+    assert "BatchMode=yes" in argv  # reuses hardened SSH_OPTS
+    assert argv[-2:] == ["/tmp/x", "root@1.2.3.4:/remote/x"]
+
+
+def test_scp_up_sends_local_to_remote(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        remote, "_run_scp",
+        lambda argv, **k: (captured.setdefault("argv", argv), _completed(returncode=0))[1],
+    )
+    remote.scp_up("1.2.3.4", "/local/f", "/remote/f", key_path="/key")
+    assert captured["argv"] == ["/local/f", "root@1.2.3.4:/remote/f"]
+
+
+def test_scp_down_pulls_remote_to_local_with_recursive(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        remote, "_run_scp",
+        lambda argv, **k: (captured.setdefault("argv", argv), _completed(returncode=0))[1],
+    )
+    remote.scp_down("1.2.3.4", "/remote/dir", "/local/dir", key_path="/key", recursive=True)
+    assert captured["argv"] == ["-r", "root@1.2.3.4:/remote/dir", "/local/dir"]
+
+
+def test_scp_down_without_recursive_has_no_flag(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        remote, "_run_scp",
+        lambda argv, **k: (captured.setdefault("argv", argv), _completed(returncode=0))[1],
+    )
+    remote.scp_down("1.2.3.4", "/remote/log", "/local/log", key_path="/key")
+    assert captured["argv"] == ["root@1.2.3.4:/remote/log", "/local/log"]
+
+
+def test_scp_raises_remote_error_on_nonzero(monkeypatch):
+    monkeypatch.setattr(remote, "_run_scp", lambda argv, **k: _completed(returncode=1, stderr="nope"))
+    with pytest.raises(RemoteError):
+        remote.scp_up("1.2.3.4", "/local/f", "/remote/f", key_path="/key")
+
+
+def test_scp_raises_remote_error_on_timeout(monkeypatch):
+    def boom(argv, **k):
+        raise subprocess.TimeoutExpired(cmd="scp", timeout=120)
+
+    monkeypatch.setattr(remote, "_run_scp", boom)
+    with pytest.raises(RemoteError):
+        remote.scp_down("1.2.3.4", "/remote/dir", "/local/dir", key_path="/key", recursive=True)

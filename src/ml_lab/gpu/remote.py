@@ -1,7 +1,8 @@
 """The SSH seam: hardened, non-interactive ssh over subprocess, mocked in every test.
 
 Mirrors do_client's doctl-subprocess pattern. wait_for_ssh / wait_for_bootstrap poll
-on an injectable clock so deadline tests are instant. scp is deferred to S3c.
+on an injectable clock so deadline tests are instant. scp_up / scp_down are one-shot:
+a nonzero exit or timeout raises RemoteError.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import time
 from ml_lab.gpu.constants import (
     BOOTSTRAP_TIMEOUT_SECONDS,
     REMOTE_POLL_INTERVAL_SECONDS,
+    SCP_TIMEOUT_SECONDS,
     SSH_ATTEMPT_TIMEOUT_SECONDS,
     SSH_TIMEOUT_SECONDS,
 )
@@ -112,3 +114,37 @@ def wait_for_bootstrap(
         if now() >= deadline:
             raise RemoteError(f"bootstrap not verified on {host} after {timeout}s")
         sleep(interval)
+
+
+def _run_scp(argv, *, key_path, timeout):
+    """Run `scp -i <key> <SSH_OPTS...> <argv...>`; return the CompletedProcess."""
+    return subprocess.run(
+        ["scp", "-i", key_path, *SSH_OPTS, *argv],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def _checked_scp(argv, *, key_path, timeout, what):
+    """Run a one-shot scp; raise RemoteError on timeout or nonzero exit."""
+    try:
+        result = _run_scp(argv, key_path=key_path, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise RemoteError(f"scp {what} timed out after {timeout}s") from e
+    if result.returncode != 0:
+        raise RemoteError(f"scp {what} failed ({result.returncode}): {result.stderr.strip()}")
+
+
+def scp_up(host, local_path, remote_path, *, key_path, timeout=SCP_TIMEOUT_SECONDS):
+    """Copy a local file up to root@<host>:<remote_path>; RemoteError on failure."""
+    _checked_scp(
+        [local_path, f"root@{host}:{remote_path}"],
+        key_path=key_path, timeout=timeout, what=f"up {local_path}",
+    )
+
+
+def scp_down(host, remote_path, local_path, *, key_path, timeout=SCP_TIMEOUT_SECONDS, recursive=False):
+    """Pull root@<host>:<remote_path> down to local_path; RemoteError on failure."""
+    argv = (["-r"] if recursive else []) + [f"root@{host}:{remote_path}", local_path]
+    _checked_scp(argv, key_path=key_path, timeout=timeout, what=f"down {remote_path}")
