@@ -1,6 +1,6 @@
-"""Typer surface for the GPU safety spine: `audit` and `down`.
+"""Typer surface for the GPU lifecycle: `run`, `up`, `down`, and `audit`.
 
-`run` / `up` are added in a later slice. `scripts/do_gpu.py` imports this `app`.
+`scripts/do_gpu.py` imports this `app`.
 """
 
 import typer
