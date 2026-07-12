@@ -127,6 +127,11 @@ def test_create_lab_droplet_ttl_expiry_tag(monkeypatch):
 
 def test_create_lab_droplet_enforce_budget_true_raises(monkeypatch):
     _happy(monkeypatch)
+
+    def boom(**k):
+        raise AssertionError("create_droplet must not be called when the budget check fails")
+
+    monkeypatch.setattr(do_client, "create_droplet", boom)
     with pytest.raises(ValueError):
         create.create_lab_droplet("#cloud-config\n", ttl_seconds=900)
 
