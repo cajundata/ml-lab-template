@@ -64,3 +64,96 @@ def test_build_tags():
     tags = create.build_tags("20260711-abc123", 1783735200)
     assert tags[:4] == ["ml-lab", "ml-pathway", "phase-0", "owner-weldon"]
     assert tags[-2:] == ["run-20260711-abc123", "ttl-expiry-1783735200"]
+
+
+def _happy(monkeypatch):
+    """Full happy-path environment; returns a dict capturing create_droplet kwargs."""
+    monkeypatch.setattr(do_client, "list_lab_droplets", lambda: [])
+    monkeypatch.setattr(do_client, "probe_destroy_token", lambda: None)
+    _valid(monkeypatch)  # so real validate_constants passes
+    calls = {}
+
+    def fake_create(**kwargs):
+        calls["kwargs"] = kwargs
+        return {"id": 42, "name": kwargs["name"], "status": "new"}
+
+    monkeypatch.setattr(do_client, "create_droplet", fake_create)
+    return calls
+
+
+def test_create_lab_droplet_happy(monkeypatch, capsys):
+    calls = _happy(monkeypatch)
+    result = create.create_lab_droplet(
+        "#cloud-config\n", run_id="20260711-abc123", now=1783728000.0
+    )
+    assert result == {
+        "id": 42,
+        "name": "ml-lab-gpu-phase0-20260711-abc123",
+        "run_id": "20260711-abc123",
+    }
+    kw = calls["kwargs"]
+    assert kw["name"] == "ml-lab-gpu-phase0-20260711-abc123"
+    assert kw["region"] == "nyc2"
+    assert kw["size"] == "gpu-4000adax1-20gb"
+    assert kw["image"] == "gpu-h100x1-base"
+    assert kw["user_data"] == "#cloud-config\n"
+    assert "run-20260711-abc123" in kw["tags"]
+    assert f"ttl-expiry-{1783728000 + 7200}" in kw["tags"]
+    out = capsys.readouterr().out
+    assert "id: 42" in out
+    assert "ml-lab-gpu-phase0-20260711-abc123" in out
+    assert "local_pid:" in out
+
+
+def test_create_lab_droplet_refuses_when_exists(monkeypatch):
+    _happy(monkeypatch)
+    monkeypatch.setattr(do_client, "list_lab_droplets", lambda: [{"id": 1, "tags": ["ml-lab"]}])
+
+    def boom(**k):
+        raise AssertionError("create_droplet must not be called when a droplet exists")
+
+    monkeypatch.setattr(do_client, "create_droplet", boom)
+    with pytest.raises(create.LabDropletExistsError):
+        create.create_lab_droplet("#cloud-config\n")
+
+
+def test_create_lab_droplet_ttl_expiry_tag(monkeypatch):
+    calls = _happy(monkeypatch)
+    create.create_lab_droplet(
+        "#cloud-config\n", ttl_seconds=3600, enforce_budget=False, run_id="r", now=1000.0
+    )
+    assert "ttl-expiry-4600" in calls["kwargs"]["tags"]
+
+
+def test_create_lab_droplet_enforce_budget_true_raises(monkeypatch):
+    _happy(monkeypatch)
+    with pytest.raises(ValueError):
+        create.create_lab_droplet("#cloud-config\n", ttl_seconds=900)
+
+
+def test_create_lab_droplet_enforce_budget_false_allows_short_ttl(monkeypatch):
+    _happy(monkeypatch)
+    result = create.create_lab_droplet(
+        "#cloud-config\n", ttl_seconds=900, enforce_budget=False, run_id="r", now=1000.0
+    )
+    assert result["id"] == 42
+
+
+def test_create_lab_droplet_passes_ssh_keys(monkeypatch):
+    calls = _happy(monkeypatch)
+    create.create_lab_droplet(
+        "#cloud-config\n", ssh_key_ids=["aa:bb"], run_id="r", now=1000.0
+    )
+    assert calls["kwargs"]["ssh_key_ids"] == ["aa:bb"]
+
+
+def test_create_lab_droplet_validates_before_create(monkeypatch):
+    _happy(monkeypatch)
+    monkeypatch.setattr(do_client, "list_image_slugs", lambda: ["other"])  # image now missing
+
+    def boom(**k):
+        raise AssertionError("create_droplet must not be called when constants invalid")
+
+    monkeypatch.setattr(do_client, "create_droplet", boom)
+    with pytest.raises(create.ConstantsError):
+        create.create_lab_droplet("#cloud-config\n")
