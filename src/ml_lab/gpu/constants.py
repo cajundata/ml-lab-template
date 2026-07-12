@@ -1,10 +1,10 @@
 """Pinned DigitalOcean GPU-lab constants (master plan §3, no fallback)."""
 
 # Toolchain / image / placement
-DO_REGION = "atl1"
-DO_SIZE_SLUG = "gpu-rtx4000x1-20gb"
+DO_REGION = "nyc2"  # atl1 has no GPU capacity in-account; deliberate change (master plan §3)
+DO_SIZE_SLUG = "gpu-4000adax1-20gb"  # RTX 4000 Ada single-GPU (type nvidia_rtx4000_ada)
 DO_GPU_RUNG = "RTX 4000 Ada"
-DO_IMAGE_SLUG = None  # DO NVIDIA AI/ML-ready GPU image; resolved in S2 (create-only)
+DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify RTX-4000 boot at S3 live
 SMOKE_MODEL_ID = "facebook/opt-125m"
 
 # Lifecycle timing (seconds)

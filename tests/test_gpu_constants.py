@@ -15,8 +15,9 @@ def test_short_ttl_below_budget_raises():
 
 
 def test_pinned_constants_present():
-    assert constants.DO_REGION == "atl1"
-    assert constants.DO_SIZE_SLUG == "gpu-rtx4000x1-20gb"
+    assert constants.DO_REGION == "nyc2"
+    assert constants.DO_SIZE_SLUG == "gpu-4000adax1-20gb"
+    assert constants.DO_IMAGE_SLUG == "gpu-h100x1-base"
     assert constants.DROPLET_NAME_PREFIX == "ml-lab-gpu-"
     assert constants.DESTROY_POLL_INTERVAL_SECONDS == 10
     assert "ml-lab" in constants.BASE_TAGS
