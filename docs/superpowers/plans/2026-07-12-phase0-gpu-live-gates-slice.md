@@ -54,7 +54,7 @@ Expected: prints account info (email, status). If it errors with an auth message
 
 Run:
 ```bash
-uv run python -c "from ml_lab.gpu.do_client import probe_destroy_token; from ml_lab.gpu.gpu_env import load_gpu_env; probe_destroy_token(load_gpu_env().destroy_token); print('token OK')"
+uv run python -c "from ml_lab.gpu.gpu_env import load_gpu_env; load_gpu_env(); from ml_lab.gpu.do_client import probe_destroy_token; probe_destroy_token(); print('token OK')"
 ```
 Expected: prints `token OK`. If it raises `DOClientError`, the token is stale or underscoped — regenerate it in the DO console, update `.env`, re-run. Hard stop until `token OK`. (This turns a mid-run silent-billing failure into a pre-spend stop.)
 
@@ -62,7 +62,7 @@ Expected: prints `token OK`. If it raises `DOClientError`, the token is stale or
 
 Run:
 ```bash
-uv run python -c "from ml_lab.gpu import constants as c; print(c.DO_REGION_SLUG, c.DO_SIZE_SLUG, c.DO_IMAGE_SLUG, c.SPACES_REGION)"
+uv run python -c "from ml_lab.gpu import constants as c; print(c.DO_REGION, c.DO_SIZE_SLUG, c.DO_IMAGE_SLUG, c.SPACES_REGION)"
 ```
 Expected: `nyc2 gpu-4000adax1-20gb gpu-h100x1-base nyc3`. If any differ, stop and reconcile against the spec's account-reality facts before spending.
 
