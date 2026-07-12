@@ -42,3 +42,36 @@ def load_gpu_env() -> GpuEnv:
     return GpuEnv(
         destroy_token=destroy_token, ssh_key_ids=ssh_key_ids, ssh_key_path=ssh_key_path
     )
+
+
+@dataclass(frozen=True)
+class SpacesEnv:
+    access_key: str  # SPACES_ACCESS_KEY_ID
+    secret_key: str  # SPACES_SECRET_ACCESS_KEY
+    bucket: str      # SPACES_BUCKET
+
+
+def load_spaces_env() -> SpacesEnv:
+    """Load .env, then read the three DO Spaces vars. Raise GpuEnvError naming all missing.
+
+    Separate from load_gpu_env: only gpu-run uploads artifacts, so gpu-up must not
+    fail on unset Spaces credentials.
+    """
+    load_dotenv()
+    access_key = os.environ.get("SPACES_ACCESS_KEY_ID", "").strip()
+    secret_key = os.environ.get("SPACES_SECRET_ACCESS_KEY", "").strip()
+    bucket = os.environ.get("SPACES_BUCKET", "").strip()
+
+    missing = [
+        name
+        for name, value in (
+            ("SPACES_ACCESS_KEY_ID", access_key),
+            ("SPACES_SECRET_ACCESS_KEY", secret_key),
+            ("SPACES_BUCKET", bucket),
+        )
+        if not value
+    ]
+    if missing:
+        raise GpuEnvError(f"missing/empty Spaces env vars: {', '.join(missing)}")
+
+    return SpacesEnv(access_key=access_key, secret_key=secret_key, bucket=bucket)
