@@ -41,6 +41,9 @@ def _is_lab_droplet(droplet: dict) -> bool:
     return "ml-lab" in tags or name.startswith(DROPLET_NAME_PREFIX)
 
 
+# Related resources (volumes/snapshots/IPs/LBs) match on the lab tag set only —
+# unlike droplets, they have no name-prefix backstop because Phase 0 never creates
+# them, so any lab-tagged hit is already a failure worth reporting.
 def _has_lab_tag(resource: dict) -> bool:
     return bool(_LAB_TAGS & set(resource.get("tags") or []))
 
@@ -64,7 +67,11 @@ def get_droplet(droplet_id: int) -> dict | None:
 
 
 def destroy_droplet(droplet_id: int) -> str:
-    """Return 'accepted' (2xx), 'gone' (404), or 'error' (anything else)."""
+    """Return 'accepted' (2xx), 'gone' (404), or 'error' (anything else).
+
+    S1's destroy_and_verify ignores this and relies on poll-to-absence; the status
+    is returned for later-slice callers (e.g. gpu-run) that branch on it.
+    """
     result = subprocess.run(
         ["doctl", "compute", "droplet", "delete", str(droplet_id), "--force"],
         capture_output=True,
