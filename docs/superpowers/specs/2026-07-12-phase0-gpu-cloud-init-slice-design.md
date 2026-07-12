@@ -79,8 +79,13 @@ placeholders above. It preserves the two locked orderings:
    → `systemctl is-active --quiet ml-lab-self-destruct.timer` come **first** in
    `runcmd`, before any venv/pip step. The self-destruct net is armed before any
    slow, network-dependent command under our control.
-2. `bootstrap-ready.json` (`{"ready": true, "self_destruct_timer_active": true}`)
-   is written **only after** a second `systemctl is-active` check.
+2. `bootstrap-ready.json` (JSON equivalent to
+   `{"ready": true, "self_destruct_timer_active": true}`) is written **only after** a
+   second `systemctl is-active` check. It is emitted space-free
+   (`{"ready":true,"self_destruct_timer_active":true}`) because a `: ` inside the
+   inline `echo` would make the whole cloud-config fail `yaml.safe_load`; the two
+   forms are identical JSON, and S3b's `wait_for_bootstrap` parses the marker as
+   JSON rather than string-matching it.
 
 Other locked properties carried verbatim: `package_update: false`; no `packages:`
 block; `run.env` at `0600`; `self_destruct.sh` fetches the droplet id from
