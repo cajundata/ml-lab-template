@@ -1,0 +1,50 @@
+#cloud-config
+package_update: false
+write_files:
+  - path: /etc/ml-lab/run.env
+    permissions: "0600"
+    content: |
+      RUN_ID=@@RUN_ID@@
+      TTL_SECONDS=@@TTL_SECONDS@@
+      SELF_DESTRUCT_RETRY_SECONDS=@@SELF_DESTRUCT_RETRY_SECONDS@@
+      SMOKE_MODEL_ID=@@SMOKE_MODEL_ID@@
+      DO_DROPLET_DESTROY_TOKEN=@@DESTROY_TOKEN@@
+  - path: /opt/ml-lab/self_destruct.sh
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      source /etc/ml-lab/run.env
+      DROPLET_ID="$(curl -fsS http://169.254.169.254/metadata/v1/id)"
+      curl -fsS -X DELETE \
+        -H "Authorization: Bearer ${DO_DROPLET_DESTROY_TOKEN}" \
+        "https://api.digitalocean.com/v2/droplets/${DROPLET_ID}"
+  - path: /etc/systemd/system/ml-lab-self-destruct.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Destroy ML lab GPU droplet after TTL
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/ml-lab/self_destruct.sh
+  - path: /etc/systemd/system/ml-lab-self-destruct.timer
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Recurring self-destruct timer for ML lab GPU droplet
+      [Timer]
+      OnBootSec=@@TTL_SECONDS@@
+      OnUnitActiveSec=@@SELF_DESTRUCT_RETRY_SECONDS@@
+      [Install]
+      WantedBy=timers.target
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now ml-lab-self-destruct.timer
+  - systemctl is-active --quiet ml-lab-self-destruct.timer
+  - mkdir -p /opt/ml-lab/artifacts
+  - nvidia-smi > /opt/ml-lab/artifacts/nvidia-smi.txt 2>&1 || true
+  - python3 -m venv /opt/ml-lab/venv
+  - /opt/ml-lab/venv/bin/python -m pip install --upgrade pip
+  - /opt/ml-lab/venv/bin/python -m pip install vllm
+  - systemctl is-active --quiet ml-lab-self-destruct.timer
+  - echo '{"ready":true,"self_destruct_timer_active":true}' > /opt/ml-lab/bootstrap-ready.json
