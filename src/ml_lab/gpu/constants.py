@@ -7,6 +7,11 @@ DO_GPU_RUNG = "RTX 4000 Ada"
 DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify RTX-4000 boot at S3 live
 SMOKE_MODEL_ID = "facebook/opt-125m"
 
+# DO Spaces (artifact upload) — region pinned like DO_REGION; change deliberately, no fallback.
+SPACES_REGION = "nyc3"  # nyc2 has no Spaces; nyc3 is the nearest Spaces region
+SPACES_ENDPOINT = f"https://{SPACES_REGION}.digitaloceanspaces.com"
+SPACES_KEY_PREFIX = "ml-pathway/phase0"  # s3://<bucket>/ml-pathway/phase0/<run-id>/ (artifacts/README.md)
+
 # Lifecycle timing (seconds)
 DEFAULT_TTL_SECONDS = 7200
 SSH_TIMEOUT_SECONDS = 600

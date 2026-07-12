@@ -21,3 +21,9 @@ def test_pinned_constants_present():
     assert constants.DROPLET_NAME_PREFIX == "ml-lab-gpu-"
     assert constants.DESTROY_POLL_INTERVAL_SECONDS == 10
     assert "ml-lab" in constants.BASE_TAGS
+
+
+def test_pinned_spaces_constants_present():
+    assert constants.SPACES_REGION == "nyc3"
+    assert constants.SPACES_ENDPOINT == "https://nyc3.digitaloceanspaces.com"
+    assert constants.SPACES_KEY_PREFIX == "ml-pathway/phase0"
