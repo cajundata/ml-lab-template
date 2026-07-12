@@ -1,3 +1,4 @@
+import pytest
 import yaml
 
 from ml_lab.gpu import cloud_init
@@ -74,9 +75,6 @@ def test_runcmd_arms_timer_before_install_and_marks_ready_last():
     active_idxs = [i for i, c in enumerate(cmds) if "is-active --quiet ml-lab-self-destruct.timer" in c]
     assert any(i < enable_idx + 2 for i in active_idxs)  # verified right after enable
     assert any(i > pip_idx for i in active_idxs)  # re-verified before the ready marker
-
-
-import pytest
 
 
 def test_render_raises_on_empty_token():
