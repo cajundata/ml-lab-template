@@ -114,3 +114,51 @@ def test_list_image_slugs_filters_null_slugs(monkeypatch):
     payload = '[{"slug":"gpu-h100x1-base"},{"slug":null},{"slug":"other"}]'
     monkeypatch.setattr(do_client.subprocess, "run", lambda *a, **k: _completed(stdout=payload))
     assert do_client.list_image_slugs() == ["gpu-h100x1-base", "other"]
+
+
+def test_create_droplet_builds_argv_and_parses_id(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, *a, **k):
+        captured["argv"] = argv
+        return _completed(stdout='[{"id": 42, "name": "ml-lab-gpu-phase0-x", "status": "new"}]')
+
+    monkeypatch.setattr(do_client.subprocess, "run", fake_run)
+    droplet = do_client.create_droplet(
+        name="ml-lab-gpu-phase0-x",
+        region="nyc2",
+        size="gpu-4000adax1-20gb",
+        image="gpu-h100x1-base",
+        tags=["ml-lab", "run-x"],
+        user_data="#cloud-config\n",
+        ssh_key_ids=["aa:bb"],
+    )
+    assert droplet["id"] == 42
+    argv = captured["argv"]
+    assert argv[:4] == ["doctl", "compute", "droplet", "create"]
+    assert "ml-lab-gpu-phase0-x" in argv
+    for flag, val in [
+        ("--region", "nyc2"),
+        ("--size", "gpu-4000adax1-20gb"),
+        ("--image", "gpu-h100x1-base"),
+    ]:
+        assert flag in argv and argv[argv.index(flag) + 1] == val
+    assert "--tag-names" in argv and argv[argv.index("--tag-names") + 1] == "ml-lab,run-x"
+    assert "--user-data-file" in argv
+    assert "--ssh-keys" in argv and argv[argv.index("--ssh-keys") + 1] == "aa:bb"
+    assert "--wait" not in argv
+    assert argv[-2:] == ["-o", "json"]
+
+
+def test_create_droplet_omits_ssh_keys_when_none(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, *a, **k):
+        captured["argv"] = argv
+        return _completed(stdout='[{"id": 7, "name": "n", "status": "new"}]')
+
+    monkeypatch.setattr(do_client.subprocess, "run", fake_run)
+    do_client.create_droplet(
+        name="n", region="nyc2", size="s", image="i", tags=["ml-lab"], user_data="#cloud-config\n"
+    )
+    assert "--ssh-keys" not in captured["argv"]

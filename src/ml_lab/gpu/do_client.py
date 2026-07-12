@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 
 import requests
 
@@ -131,6 +132,43 @@ def list_region_slugs() -> list[str]:
 
 def list_sizes() -> list[dict]:
     return _run_doctl(["compute", "size", "list"])
+
+
+def create_droplet(
+    *, name, region, size, image, tags, user_data, ssh_key_ids=None
+) -> dict:
+    """Create a tagged GPU droplet with cloud-init; return the created droplet dict.
+
+    Tags are applied atomically via --tag-names (never create-then-tag). cloud-init
+    is passed by file. NO --wait, so the id returns immediately for the create-time
+    identity print. Runs through _run_doctl, which appends -o json and check=True.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as handle:
+        handle.write(user_data)
+        user_data_path = handle.name
+    try:
+        args = [
+            "compute",
+            "droplet",
+            "create",
+            name,
+            "--region",
+            region,
+            "--size",
+            size,
+            "--image",
+            image,
+            "--tag-names",
+            ",".join(tags),
+            "--user-data-file",
+            user_data_path,
+        ]
+        if ssh_key_ids:
+            args += ["--ssh-keys", ",".join(ssh_key_ids)]
+        result = _run_doctl(args)
+    finally:
+        os.unlink(user_data_path)
+    return result[0] if isinstance(result, list) else result
 
 
 def list_image_slugs() -> list[str]:
