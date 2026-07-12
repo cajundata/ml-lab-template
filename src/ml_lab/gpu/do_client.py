@@ -181,3 +181,11 @@ def list_image_slugs() -> list[str]:
         for i in _run_doctl(["compute", "image", "list", "--public"])
         if i.get("slug")
     ]
+
+
+def public_ipv4(droplet: dict) -> str | None:
+    """Return the droplet's public IPv4 address, or None if it has none yet."""
+    for net in ((droplet.get("networks") or {}).get("v4") or []):
+        if net.get("type") == "public":
+            return net.get("ip_address")
+    return None

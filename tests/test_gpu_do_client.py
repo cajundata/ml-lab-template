@@ -170,3 +170,21 @@ def test_create_droplet_raises_when_doctl_returns_nothing(monkeypatch):
         do_client.create_droplet(
             name="n", region="r", size="s", image="i", tags=["ml-lab"], user_data="#cloud-config\n"
         )
+
+
+def test_public_ipv4_extracts_public_address():
+    droplet = {
+        "networks": {
+            "v4": [
+                {"type": "private", "ip_address": "10.0.0.1"},
+                {"type": "public", "ip_address": "1.2.3.4"},
+            ]
+        }
+    }
+    assert do_client.public_ipv4(droplet) == "1.2.3.4"
+
+
+def test_public_ipv4_none_when_no_public():
+    private_only = {"networks": {"v4": [{"type": "private", "ip_address": "10.0.0.1"}]}}
+    assert do_client.public_ipv4(private_only) is None
+    assert do_client.public_ipv4({}) is None

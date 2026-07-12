@@ -45,13 +45,6 @@ def _image_slug(d: dict) -> str:
     return image.get("slug") or image.get("name") or ""
 
 
-def _public_ip(d: dict) -> str:
-    for net in (d.get("networks") or {}).get("v4") or []:
-        if net.get("type") == "public":
-            return net.get("ip_address", "")
-    return ""
-
-
 def _ttl_expiry_tag(tags: list[str]) -> str | None:
     for tag in tags:
         if tag.startswith("ttl-expiry-"):
@@ -101,7 +94,7 @@ def _to_info(d: dict, now: float) -> DropletInfo:
         region=_region_slug(d),
         size=d.get("size_slug", ""),
         image=_image_slug(d),
-        public_ip=_public_ip(d),
+        public_ip=do_client.public_ipv4(d) or "",
         age=_fmt_age(d.get("created_at"), now),
         ttl_expiry=ttl_display,
         overdue=overdue,
