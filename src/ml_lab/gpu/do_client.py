@@ -24,12 +24,17 @@ class DOClientError(RuntimeError):
 
 
 def _run_doctl(args: list[str]) -> list[dict]:
-    result = subprocess.run(
-        ["doctl", *args, "-o", "json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        result = subprocess.run(
+            ["doctl", *args, "-o", "json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise DOClientError(
+            f"doctl {' '.join(args)} failed: {(exc.stderr or '').strip()}"
+        ) from exc
     text = (result.stdout or "").strip()
     if not text or text == "null":
         return []

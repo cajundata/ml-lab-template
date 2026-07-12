@@ -188,3 +188,12 @@ def test_public_ipv4_none_when_no_public():
     private_only = {"networks": {"v4": [{"type": "private", "ip_address": "10.0.0.1"}]}}
     assert do_client.public_ipv4(private_only) is None
     assert do_client.public_ipv4({}) is None
+
+
+def test_run_doctl_wraps_calledprocesserror(monkeypatch):
+    def boom(*a, **k):
+        raise do_client.subprocess.CalledProcessError(1, "doctl", stderr="unauthorized")
+
+    monkeypatch.setattr(do_client.subprocess, "run", boom)
+    with pytest.raises(DOClientError):
+        do_client._run_doctl(["compute", "droplet", "list"])
