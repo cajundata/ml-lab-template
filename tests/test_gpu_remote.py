@@ -71,3 +71,50 @@ def test_run_ssh_builds_argv(monkeypatch):
     assert "BatchMode=yes" in argv
     assert "IdentitiesOnly=yes" in argv  # only the -i key authenticates, not agent keys
     assert "StrictHostKeyChecking=accept-new" in argv
+
+
+READY_JSON = '{"ready":true,"self_destruct_timer_active":true}'
+
+
+def test_wait_for_bootstrap_returns_marker_when_both_flags_true(monkeypatch):
+    monkeypatch.setattr(remote.subprocess, "run", lambda *a, **k: _completed(stdout=READY_JSON))
+    clock = _FakeClock()
+    marker = remote.wait_for_bootstrap(
+        "1.2.3.4", key_path="/key", timeout=1000, now=clock.now, sleep=clock.sleep
+    )
+    assert marker == {"ready": True, "self_destruct_timer_active": True}
+
+
+def test_wait_for_bootstrap_polls_until_ready(monkeypatch):
+    seq = iter(
+        [
+            _completed(returncode=1, stdout=""),  # file not there yet
+            _completed(stdout='{"ready":true,"self_destruct_timer_active":false}'),  # timer not up
+            _completed(stdout=READY_JSON),  # ready
+        ]
+    )
+    monkeypatch.setattr(remote.subprocess, "run", lambda *a, **k: next(seq))
+    clock = _FakeClock()
+    marker = remote.wait_for_bootstrap(
+        "1.2.3.4", key_path="/key", timeout=1000, now=clock.now, sleep=clock.sleep
+    )
+    assert marker["self_destruct_timer_active"] is True
+
+
+def test_wait_for_bootstrap_times_out_when_timer_never_active(monkeypatch):
+    stale = '{"ready":true,"self_destruct_timer_active":false}'
+    monkeypatch.setattr(remote.subprocess, "run", lambda *a, **k: _completed(stdout=stale))
+    clock = _FakeClock()
+    with pytest.raises(RemoteError):
+        remote.wait_for_bootstrap(
+            "1.2.3.4", key_path="/key", timeout=30, now=clock.now, sleep=clock.sleep
+        )
+
+
+def test_wait_for_bootstrap_ignores_malformed_json(monkeypatch):
+    monkeypatch.setattr(remote.subprocess, "run", lambda *a, **k: _completed(stdout="not json"))
+    clock = _FakeClock()
+    with pytest.raises(RemoteError):
+        remote.wait_for_bootstrap(
+            "1.2.3.4", key_path="/key", timeout=30, now=clock.now, sleep=clock.sleep
+        )

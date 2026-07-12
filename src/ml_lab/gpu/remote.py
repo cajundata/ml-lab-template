@@ -67,3 +67,48 @@ def wait_for_ssh(
         if now() >= deadline:
             raise RemoteError(f"ssh to {host} not reachable after {timeout}s")
         sleep(interval)
+
+
+def wait_for_bootstrap(
+    host,
+    *,
+    key_path,
+    timeout=BOOTSTRAP_TIMEOUT_SECONDS,
+    interval=REMOTE_POLL_INTERVAL_SECONDS,
+    now=None,
+    sleep=None,
+):
+    """Poll /opt/ml-lab/bootstrap-ready.json until ready AND timer active; else RemoteError.
+
+    Parses the marker as JSON (not string-match), so both flags must be exactly True.
+    """
+    now = now or time.monotonic
+    sleep = sleep or time.sleep
+    deadline = now() + timeout
+    while True:
+        marker = None
+        try:
+            result = _run_ssh(
+                host,
+                ["cat", "/opt/ml-lab/bootstrap-ready.json"],
+                key_path=key_path,
+                timeout=SSH_ATTEMPT_TIMEOUT_SECONDS,
+            )
+            if result.returncode == 0:
+                try:
+                    parsed = json.loads(result.stdout)
+                except json.JSONDecodeError:
+                    parsed = None
+                if (
+                    isinstance(parsed, dict)
+                    and parsed.get("ready") is True
+                    and parsed.get("self_destruct_timer_active") is True
+                ):
+                    marker = parsed
+        except subprocess.TimeoutExpired:
+            marker = None
+        if marker is not None:
+            return marker
+        if now() >= deadline:
+            raise RemoteError(f"bootstrap not verified on {host} after {timeout}s")
+        sleep(interval)
