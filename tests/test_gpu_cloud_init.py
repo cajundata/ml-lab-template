@@ -74,3 +74,19 @@ def test_runcmd_arms_timer_before_install_and_marks_ready_last():
     active_idxs = [i for i, c in enumerate(cmds) if "is-active --quiet ml-lab-self-destruct.timer" in c]
     assert any(i < enable_idx + 2 for i in active_idxs)  # verified right after enable
     assert any(i > pip_idx for i in active_idxs)  # re-verified before the ready marker
+
+
+import pytest
+
+
+def test_render_raises_on_empty_token():
+    with pytest.raises(ValueError, match="destroy_token"):
+        cloud_init.render_cloud_init(run_id="r", destroy_token="")
+
+
+def test_render_raises_on_leftover_placeholder(monkeypatch, tmp_path):
+    bad = tmp_path / "bad.tmpl"
+    bad.write_text("RUN_ID=@@RUN_ID@@\nMYSTERY=@@MYSTERY@@\n")
+    monkeypatch.setattr(cloud_init, "_TEMPLATE_PATH", bad)
+    with pytest.raises(ValueError, match="placeholder"):
+        cloud_init.render_cloud_init(run_id="r", destroy_token=FAKE_TOKEN)
