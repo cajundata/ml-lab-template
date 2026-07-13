@@ -17,7 +17,6 @@ from ml_lab.gpu.cloud_init import render_cloud_init
 from ml_lab.gpu.constants import (
     BOOTSTRAP_TIMEOUT_SECONDS,
     DEFAULT_TTL_SECONDS,
-    DO_REGION,
     DO_SIZE_SLUG,
     REMOTE_POLL_INTERVAL_SECONDS,
     SELF_DESTRUCT_RETRY_SECONDS,
@@ -61,7 +60,7 @@ def _print_handoff(result, ip, ttl_seconds):
         "Created GPU droplet:\n"
         f"  id: {result['id']}\n"
         f"  name: {result['name']}\n"
-        f"  region: {DO_REGION}\n"
+        f"  region: {result['region']}\n"
         f"  size: {DO_SIZE_SLUG}\n"
         f"  public-ip: {ip}\n"
         f"  ttl: {ttl_seconds} seconds\n"

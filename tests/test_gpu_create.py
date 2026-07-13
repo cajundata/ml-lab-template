@@ -18,40 +18,57 @@ def test_validate_constants_passes(monkeypatch):
     create.validate_constants()  # no raise
 
 
-def test_validate_constants_region_missing(monkeypatch):
-    _valid(monkeypatch)
-    monkeypatch.setattr(do_client, "list_region_slugs", lambda: ["sfo3"])
-    with pytest.raises(ConstantsError):
-        create.validate_constants()
-
-
 def test_validate_constants_size_missing(monkeypatch):
     _valid(monkeypatch)
-    monkeypatch.setattr(do_client, "list_sizes", lambda: [{"slug": "other", "regions": ["nyc2"]}])
+    monkeypatch.setattr(do_client, "list_sizes", lambda: [{"slug": "other", "regions": ["atl1"]}])
     with pytest.raises(ConstantsError):
         create.validate_constants()
 
 
-def test_validate_constants_size_not_in_region(monkeypatch):
+def test_validate_constants_ignores_region(monkeypatch):
+    # Region is resolved live at create time (resolve_region), not gated here, so a
+    # size whose live regions exclude DO_REGION still passes preflight.
     _valid(monkeypatch)
     monkeypatch.setattr(
         do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["sfo3"]}]
     )
-    with pytest.raises(ConstantsError):
-        create.validate_constants()
+    create.validate_constants()  # no raise
 
 
-def test_validate_constants_size_null_regions_allowed(monkeypatch):
-    # DO's /v2/sizes returns regions=null for many GPU SKUs (this bit us on
-    # gpu-4000adax1-20gb during S4 live). A null/empty regions list must NOT be
-    # treated as "unavailable" — the region check only applies when DO reports a
-    # populated regions list. The real create call (DO 422, pre-billing) is the
-    # authority for null-regions GPU sizes.
-    _valid(monkeypatch)
+# --- resolve_region: GPU capacity shifts regions within minutes, so the create
+# --- region is resolved from DO's live per-size regions rather than statically pinned.
+
+
+def test_resolve_region_prefers_do_region(monkeypatch):
+    # DO_REGION is atl1; when the size is live-available there, prefer it.
+    monkeypatch.setattr(
+        do_client, "list_sizes",
+        lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["nyc2", "atl1"]}],
+    )
+    assert create.resolve_region("gpu-h200x1-141gb") == "atl1"
+
+
+def test_resolve_region_picks_available_when_do_region_absent(monkeypatch):
+    # atl1 capacity gone; DO now reports the size only in nyc2 -> create in nyc2.
+    monkeypatch.setattr(
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["nyc2"]}]
+    )
+    assert create.resolve_region("gpu-h200x1-141gb") == "nyc2"
+
+
+def test_resolve_region_falls_back_when_null(monkeypatch):
+    # DO reports no regions (common for GPU SKUs) -> fall back to DO_REGION (atl1),
+    # let the create call's DO 422 be the authority.
     monkeypatch.setattr(
         do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": None}]
     )
-    create.validate_constants()  # no raise
+    assert create.resolve_region("gpu-h200x1-141gb") == "atl1"
+
+
+def test_resolve_region_size_not_found(monkeypatch):
+    monkeypatch.setattr(do_client, "list_sizes", lambda: [{"slug": "other", "regions": ["atl1"]}])
+    with pytest.raises(ConstantsError):
+        create.resolve_region("gpu-h200x1-141gb")
 
 
 def test_validate_constants_image_missing(monkeypatch):
@@ -103,6 +120,7 @@ def test_create_lab_droplet_happy(monkeypatch, capsys):
         "id": 42,
         "name": "ml-lab-gpu-phase0-20260711-abc123",
         "run_id": "20260711-abc123",
+        "region": "atl1",
     }
     kw = calls["kwargs"]
     assert kw["name"] == "ml-lab-gpu-phase0-20260711-abc123"
@@ -116,6 +134,21 @@ def test_create_lab_droplet_happy(monkeypatch, capsys):
     assert "id: 42" in out
     assert "ml-lab-gpu-phase0-20260711-abc123" in out
     assert "local_pid:" in out
+
+
+def test_create_lab_droplet_uses_resolved_region(monkeypatch, capsys):
+    # atl1 (DO_REGION) capacity gone; DO reports the size only in nyc2 now. Create
+    # must follow the live signal to nyc2, and the printed/returned region matches.
+    calls = _happy(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["nyc2"]}]
+    )
+    result = create.create_lab_droplet(
+        "#cloud-config\n", run_id="20260711-abc123", now=1783728000.0
+    )
+    assert calls["kwargs"]["region"] == "nyc2"
+    assert result["region"] == "nyc2"
+    assert "region: nyc2" in capsys.readouterr().out
 
 
 def test_create_lab_droplet_refuses_when_exists(monkeypatch):

@@ -1,7 +1,7 @@
 """Pinned DigitalOcean GPU-lab constants (master plan §3, no fallback)."""
 
 # Toolchain / image / placement
-DO_REGION = "atl1"  # S4 live (2026-07-12): 4000ada moved to tor1-only & out of capacity; h200x1 is offered in atl1
+DO_REGION = "atl1"  # PREFERRED region only; GPU capacity flips regions per-minute, so create.resolve_region picks the live region for the size at create time
 DO_SIZE_SLUG = "gpu-h200x1-141gb"  # Nvidia H200 single-GPU (type nvidia_h200); replaces gpu-4000adax1-20gb (tor1-only/no capacity)
 DO_GPU_RUNG = "H200"
 DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify H200 boot at S4 live

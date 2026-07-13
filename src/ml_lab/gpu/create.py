@@ -28,19 +28,35 @@ class ConstantsError(RuntimeError):
 
 
 def validate_constants() -> None:
-    if DO_REGION not in do_client.list_region_slugs():
-        raise ConstantsError(f"region {DO_REGION} not available in account")
-    size = next((s for s in do_client.list_sizes() if s["slug"] == DO_SIZE_SLUG), None)
-    if size is None:
+    """Preflight the size + image exist in the account.
+
+    Region is NOT gated here: DO GPU capacity shifts between regions within minutes,
+    so the create region is resolved live at create time (resolve_region) instead of
+    being statically pinned. Where a size exists but is not actually creatable, the
+    create call's DO 422 (pre-billing) is the authority.
+    """
+    if next((s for s in do_client.list_sizes() if s["slug"] == DO_SIZE_SLUG), None) is None:
         raise ConstantsError(f"size {DO_SIZE_SLUG} not found")
-    # DO's /v2/sizes returns regions=null for many GPU SKUs (e.g. gpu-4000adax1-20gb),
-    # so only enforce region membership when DO actually reports a populated list.
-    # For null/empty regions the create call (DO 422, pre-billing) is the authority.
-    regions = size.get("regions")
-    if regions and DO_REGION not in regions:
-        raise ConstantsError(f"size {DO_SIZE_SLUG} not available in {DO_REGION}")
     if DO_IMAGE_SLUG not in do_client.list_image_slugs():
         raise ConstantsError(f"image {DO_IMAGE_SLUG} not available in account")
+
+
+def resolve_region(size_slug: str = DO_SIZE_SLUG) -> str:
+    """Return the region to create `size_slug` in, from DO's live per-size regions.
+
+    GPU capacity on DO shifts between regions within minutes, so the create region is
+    resolved live rather than statically pinned. Prefer the configured DO_REGION when
+    the size is currently available there; otherwise take the first region DO reports
+    for the size. When DO reports no regions (null/empty — common for GPU SKUs), fall
+    back to DO_REGION and let the create call (DO 422, pre-billing) be the authority.
+    """
+    size = next((s for s in do_client.list_sizes() if s["slug"] == size_slug), None)
+    if size is None:
+        raise ConstantsError(f"size {size_slug} not found")
+    regions = size.get("regions") or []
+    if regions:
+        return DO_REGION if DO_REGION in regions else regions[0]
+    return DO_REGION
 
 
 def generate_run_id(now: float) -> str:
@@ -87,10 +103,11 @@ def create_lab_droplet(
     name = NAME_FORMAT.format(run_id=run_id)
     ttl_epoch = int(now) + ttl_seconds
     tags = build_tags(run_id, ttl_epoch)
+    region = resolve_region(DO_SIZE_SLUG)
 
     droplet = do_client.create_droplet(
         name=name,
-        region=DO_REGION,
+        region=region,
         size=DO_SIZE_SLUG,
         image=DO_IMAGE_SLUG,
         tags=tags,
@@ -98,7 +115,8 @@ def create_lab_droplet(
         ssh_key_ids=ssh_key_ids,
     )
     print(
-        f"Created droplet:\n  id: {droplet['id']}\n  name: {name}\n  local_pid: {os.getpid()}",
+        f"Created droplet:\n  id: {droplet['id']}\n  name: {name}\n"
+        f"  region: {region}\n  local_pid: {os.getpid()}",
         flush=True,
     )
-    return {"id": droplet["id"], "name": name, "run_id": run_id}
+    return {"id": droplet["id"], "name": name, "run_id": run_id, "region": region}
