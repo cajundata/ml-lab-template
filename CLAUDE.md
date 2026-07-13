@@ -28,6 +28,11 @@ development; Go is the durable service layer in later phases. See `README.md` fo
   The S4 spec (`2026-07-12-phase0-gpu-live-gates-slice-design.md`) has the live Results
   log + the 10 live findings.
 - **`src/ml_lab/`** — `data/`, `models/`, `evaluation/`, `tracking/`, `gpu/`, `cli.py`.
+- **`.omm/`** — architecture docs as Mermaid diagrams + prose, 5 perspectives recursed to
+  leaf elements. **Read this to orient fast.** `state-transitions` is the one that matters
+  most (droplet lifecycle as a state machine; the `stranded` billing state and the three
+  defense layers out of it). Browse with `omm view`; regenerate with the `omm-scan` skill
+  after structural changes. Generated FROM the code — the code wins in any disagreement.
 - **Project memory** lives OUTSIDE the repo at
   `~/.claude/projects/-Users-weldon-projects-ml-lab-template/memory/` — see "Portability".
 
