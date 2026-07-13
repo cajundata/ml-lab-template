@@ -1,0 +1,7 @@
+graph LR
+    make-targets["Make Targets\nMakefile"]
+    ml-commands["ml-lab Typer App\nsrc/ml_lab/cli.py"]
+    gpu-commands["do_gpu Typer App\nsrc/ml_lab/gpu/cli.py"]
+
+    make-targets -->|"make train, make evaluate"| ml-commands
+    make-targets -->|"make gpu-run, gpu-up, gpu-down, gpu-audit"| gpu-commands

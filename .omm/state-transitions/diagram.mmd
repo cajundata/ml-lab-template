@@ -1,0 +1,31 @@
+graph TD
+    preflight["Preflight Gates\nsrc/ml_lab/gpu/create.py"]
+    provisioning["Provisioning\nsrc/ml_lab/gpu/create.py"]
+    booting["Booting and Bootstrap\nscripts/cloud-init-gpu.yaml.tmpl"]
+    verified["Verified and Handed Off\nsrc/ml_lab/gpu/lifecycle.py"]
+    benchmarking["Benchmarking\nsrc/ml_lab/gpu/benchmark.py"]
+    destroyed["Destroyed and Verified\nsrc/ml_lab/gpu/teardown.py"]
+    self-destruct["Remote Self-Destruct\nml-lab-self-destruct.timer"]
+    stranded["STRANDED (billing)\nthe state this repo exists to prevent"]
+
+    preflight -->|"all gates pass, no droplet existed yet"| provisioning
+    preflight -->|"any gate fails: nothing created, nothing owed"| destroyed
+    provisioning -->|"422 no capacity: pre-billing, retry next SKU or region"| provisioning
+    provisioning -->|"droplet id returned, billing STARTS here"| booting
+    booting -->|"timer armed and verified, marker says ready"| verified
+    booting -->|"no public IP, ssh or bootstrap timeout"| destroyed
+    verified -->|"gpu_run continues"| benchmarking
+    verified -->|"gpu_up STOPS HERE: left alive on purpose, reap manually"| stranded
+    benchmarking -->|"pass or fail: pull bundle, upload, then always destroy"| destroyed
+    benchmarking -->|"timeout or transport error: destroy beats artifacts"| destroyed
+    verified -->|"Ctrl-C: SIGINT ignored once teardown is armed"| destroyed
+    stranded -->|"TTL elapses: droplet DELETEs itself, zero local involvement"| self-destruct
+    benchmarking -->|"kill -9 the local run: no finally ever executes"| stranded
+    self-destruct -->|"retries every 300s until the DELETE succeeds"| destroyed
+
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    classDef store fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    class stranded concern
+    class preflight entry
+    class destroyed store

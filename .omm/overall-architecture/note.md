@@ -1,0 +1,7 @@
+**Reading order for a newcomer.** Start at `src/ml_lab/gpu/lifecycle.py` — it is the spine, and its docstring states the safety contract precisely. Then `create.py` (all the preflight gates live inside `create_lab_droplet`, so both entry paths inherit them) and `teardown.py` (the one function every teardown routes through). The local ML half is small enough to read in one sitting: `cli.py` orchestrates `data -> models -> evaluation -> tracking` in about 100 lines.
+
+**The seam pattern.** `do_client.py` (doctl + DO REST), `remote.py` (ssh/scp), and `spaces.py` (boto3) are each *one external dependency, isolated behind one module, mocked in every test*. Clocks and sleeps are injectable (`now=`, `sleep=`), so deadline tests run instantly rather than actually waiting 600s. If you add an external dependency, add it as a fourth seam in this shape — do not reach for the network from inside orchestration code.
+
+**Two entry paths, one spine.** `gpu_up` (debug) and `gpu_run` (full benchmark) share `create -> wait-for-IP -> wait-for-SSH -> wait-for-bootstrap`. They differ only at the end: `gpu_up` leaves a verified droplet *alive* and destroys only on a non-clean exit; `gpu_run` always destroys in a `finally`.
+
+**Machine-local state does not travel with `git clone`.** `doctl auth`, the SSH key registered with DO, and `.env` all have to be re-established on a new machine — see `README.md` -> "GPU prerequisites". Project memory lives outside the repo, with a committed snapshot under `docs/claude-memory/`.

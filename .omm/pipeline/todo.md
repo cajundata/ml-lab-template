@@ -1,0 +1,4 @@
+- **Phase 1 (tabular)** — a real dataset and a real model. The commands will need to take arguments; today `train-smoke` / `evaluate-smoke` take none.
+- No cross-validation, no hyperparameter search, no baseline comparison. Deliberate for a smoke lifecycle; all of it is missing for a real one.
+- `train_accuracy` / `train_f1` are scored on the training split. Phase 1 needs a proper validation split, not just train/test.
+- `vllm_smoke` stays informational until the **Phase-5 cloud-serving** track picks it up (start by capturing the engine *subprocess* stderr — the parent's traceback is not where the real error is).

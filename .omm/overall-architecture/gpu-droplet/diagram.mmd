@@ -1,0 +1,16 @@
+graph LR
+    bootstrap["Cloud-Init Bootstrap\nscripts/cloud-init-gpu.yaml.tmpl"]
+    self-destruct-timer["Self-Destruct Timer\nml-lab-self-destruct.timer"]
+    bootstrap-marker["Readiness Marker\n/opt/ml-lab/bootstrap-ready.json"]
+    gpu-benchmark["GPU Benchmark\nscripts/gpu_benchmark.py"]
+
+    bootstrap -->|"installs and starts, then asserts active"| self-destruct-timer
+    bootstrap -->|"builds venv, pip install vllm, captures nvidia-smi"| gpu-benchmark
+    bootstrap -->|"writes only after the timer is verified active"| bootstrap-marker
+    self-destruct-timer -->|"its armed state is what the marker attests"| bootstrap-marker
+    gpu-benchmark -->|"writes the bundle to /opt/ml-lab/artifacts/RUN_ID/"| bootstrap-marker
+
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    class self-destruct-timer concern
+    class bootstrap entry

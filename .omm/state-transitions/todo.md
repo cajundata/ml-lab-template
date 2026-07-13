@@ -1,0 +1,3 @@
+- No cap on actual GPU spend below the TTL. A hung benchmark burns up to `BENCHMARK_TIMEOUT_SECONDS` (1800s) of GPU time before the local timeout fires. Worth revisiting if runs get expensive.
+- `make gpu-audit` is manual. Nothing runs it on a schedule, so a droplet stranded by `gpu_up` is only noticed when someone looks (or when the TTL reaps it). A cron/CI audit would close that gap.
+- Bootstrap latency is dominated by `pip install vllm` — which is installed on **every** boot even though `vllm_smoke` is only informational. Trimming it would shorten the most opaque state in the machine.

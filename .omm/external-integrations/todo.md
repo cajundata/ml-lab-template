@@ -1,0 +1,4 @@
+- **No local model cache or mirror for `facebook/opt-125m`.** The required `transformers_smoke` probe pulls it from the Hugging Face Hub at run time, so a Hub outage or rate limit fails an otherwise healthy GPU run. Baking the model into the image, or caching it, would remove an external dependency from the required path.
+- **The capacity-error detection is a substring match** on doctl's error text (`"not available in this region"`). A doctl release could change that wording and turn a graceful retry into a hard failure.
+- **DO Spaces is the only artifact archive** and there is no retention policy — bundles accumulate under `s3://<bucket>/ml-pathway/phase0/` forever.
+- vLLM's engine-core failure is a **Phase-5** item. When it is picked up: capture the engine *subprocess* stderr first.

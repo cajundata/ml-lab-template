@@ -1,0 +1,11 @@
+created: 2026-07-13T16:12:48.490Z
+updated: 2026-07-13T16:37:32.300Z
+update_count: 2
+last_field: diagram
+kind: nested-class
+title: cli
+children:
+  - gpu-commands
+  - make-targets
+  - ml-commands
+parentPath: []

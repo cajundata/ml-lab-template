@@ -1,0 +1,5 @@
+- **`make gpu-down` hard-requires `DROPLET_ID`** and fails with a usage message rather than doing anything clever if it is missing. Destroying the wrong droplet — or destroying nothing while believing you destroyed something — is exactly the failure this repo exists to prevent.
+- **`gpu audit` exits nonzero when the account is dirty.** That exit code is the contract: it is meant to be usable as a preflight/CI check, not just read by a human.
+- **`gpu run` propagates the benchmark's exit code** as the process exit code (`raise typer.Exit(code=gpu_run())`), so a failed benchmark is visible to whatever called it.
+- **`gpu up --ttl-seconds N` also disables the budget check** (`enforce_budget=False`). This is the deliberate escape hatch for short-fuse self-destruct testing — a 5-minute TTL cannot fit the benchmark budget, and that is the point. Do not use it for real runs.
+- `make evaluate` requires `make train` to have run first; it reads the MLflow run id back off disk from `reports/smoke/latest/train_run_id.txt` and fails loudly if it is absent.

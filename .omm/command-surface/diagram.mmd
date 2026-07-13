@@ -1,0 +1,12 @@
+graph TD
+    makefile["Makefile\nMakefile"]
+    ml-lab-app["ml-lab console script\nsrc/ml_lab/cli.py"]
+    do-gpu-app["do_gpu script\nscripts/do_gpu.py + src/ml_lab/gpu/cli.py"]
+
+    makefile -->|"make train, make evaluate (also test, mlflow-ui, clean)"| ml-lab-app
+    makefile -->|"make gpu-run, gpu-up, gpu-down, gpu-audit"| do-gpu-app
+
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    class makefile entry
+    class do-gpu-app concern

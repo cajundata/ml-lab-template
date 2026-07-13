@@ -1,0 +1,5 @@
+- **Phase 1 (tabular)** is the next slice — a real dataset and a real model on the rails Phase 0 built.
+- **`src/ml_lab/serving/` is an empty placeholder.** Serving is the Phase-5 cloud-serving track; that is also where vLLM's engine-core failure gets diagnosed properly (start by capturing the engine subprocess stderr, not the parent's).
+- **Go service layer** is planned for later phases per the master plan; nothing exists yet.
+- The cloud-init `runcmd` installs vLLM on every boot (`pip install vllm`), which dominates bootstrap time even though `vllm_smoke` is only informational. Worth trimming when GPU bootstrap latency starts to matter.
+- `models/`, `reports/`, `data/processed/` and `artifacts/` are workspace outputs, not source. `make clean` reaps the first three; `artifacts/` is not cleaned.

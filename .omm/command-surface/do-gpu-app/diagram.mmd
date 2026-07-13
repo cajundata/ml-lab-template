@@ -1,0 +1,15 @@
+graph LR
+    gpu-audit["audit\nsrc/ml_lab/gpu/cli.py"]
+    gpu-down["down --droplet-id\nsrc/ml_lab/gpu/cli.py"]
+    gpu-up["up --ttl-seconds\nsrc/ml_lab/gpu/cli.py"]
+    gpu-run["run\nsrc/ml_lab/gpu/cli.py"]
+
+    gpu-run -->|"creates a droplet, then always destroys it"| gpu-down
+    gpu-up -->|"leaves the droplet ALIVE: you must reap it"| gpu-down
+    gpu-down -->|"teardown is not done until the audit is clean"| gpu-audit
+    gpu-audit -->|"prints the exact destroy command for anything it finds"| gpu-down
+
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    classDef store fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    class gpu-up concern
+    class gpu-audit store

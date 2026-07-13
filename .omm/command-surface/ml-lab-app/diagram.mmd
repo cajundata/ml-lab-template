@@ -1,0 +1,5 @@
+graph LR
+    train-smoke["train-smoke\nsrc/ml_lab/cli.py"]
+    evaluate-smoke["evaluate-smoke\nsrc/ml_lab/cli.py"]
+
+    train-smoke -->|"hands off the MLflow run id via reports/smoke/latest/train_run_id.txt"| evaluate-smoke

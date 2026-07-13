@@ -1,0 +1,4 @@
+- **Two DigitalOcean tokens, never one.** doctl authenticates with the operator's normal token. The **destroy-scoped** token (`DO_DROPLET_DESTROY_TOKEN`) is a *separate* credential whose only job is deleting droplets. Do not collapse them.
+- **The destroy token reaches the droplet only via cloud-init**, into `/etc/ml-lab/run.env` at **mode 0600**. It is never passed over SSH, never logged, and never written to the artifact bundle.
+- **`probe_destroy_token()` must run before any droplet is created.** Never provision what you cannot destroy. A **404 is the success case** — it proves the token both authenticates and carries delete scope.
+- `cloud_init.render_cloud_init()` **raises if the destroy token is empty**, and again if any `@@PLACEHOLDER@@` survives rendering. A droplet that boots with a blank token has no safety net, and a silently unfilled placeholder would ship a broken self-destruct script to a machine that bills by the hour.

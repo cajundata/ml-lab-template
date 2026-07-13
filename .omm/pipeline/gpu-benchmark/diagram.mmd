@@ -1,0 +1,16 @@
+graph LR
+    torch-cuda["torch_cuda (REQUIRED)\nscripts/gpu_benchmark.py"]
+    transformers-smoke["transformers_smoke (REQUIRED)\nscripts/gpu_benchmark.py"]
+    vllm-smoke["vllm_smoke (informational, FAILS)\nscripts/gpu_benchmark.py"]
+    system-probe["system (informational)\nscripts/gpu_benchmark.py"]
+    nvidia-smi["nvidia_smi (informational)\nscripts/gpu_benchmark.py"]
+
+    torch-cuda -->|"proves the device works, so a model workload can be trusted on it"| transformers-smoke
+    transformers-smoke -->|"exit 0 iff BOTH required probes pass"| system-probe
+    vllm-smoke -->|"excluded from required_ok: deferred to Phase 5 serving"| system-probe
+    system-probe -->|"GPU name, memory, driver, CUDA visibility"| nvidia-smi
+
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    class vllm-smoke concern
+    class torch-cuda,transformers-smoke entry

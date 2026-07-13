@@ -1,0 +1,9 @@
+created: 2026-07-13T16:39:59.913Z
+updated: 2026-07-13T16:39:59.914Z
+update_count: 1
+last_field: description
+kind: nested-class
+title: bootstrap-marker
+children: []
+parentPath:
+  - gpu-droplet

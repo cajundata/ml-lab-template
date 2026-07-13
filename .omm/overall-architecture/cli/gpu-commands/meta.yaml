@@ -1,0 +1,9 @@
+created: 2026-07-13T16:38:14.223Z
+updated: 2026-07-13T16:38:14.224Z
+update_count: 1
+last_field: description
+kind: nested-class
+title: gpu-commands
+children: []
+parentPath:
+  - cli

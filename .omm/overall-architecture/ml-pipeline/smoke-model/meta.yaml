@@ -1,0 +1,9 @@
+created: 2026-07-13T16:38:27.139Z
+updated: 2026-07-13T16:38:27.141Z
+update_count: 1
+last_field: description
+kind: nested-class
+title: smoke-model
+children: []
+parentPath:
+  - ml-pipeline

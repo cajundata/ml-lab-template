@@ -1,0 +1,8 @@
+graph LR
+    synthetic-data["Synthetic Data\nsrc/ml_lab/data/synthetic.py"]
+    smoke-model["Smoke Model\nsrc/ml_lab/models/logistic_smoke.py"]
+    evaluation["Evaluation\nsrc/ml_lab/evaluation/logistic_eval.py"]
+
+    synthetic-data -->|"train.csv fits the estimator"| smoke-model
+    synthetic-data -->|"test.csv is the held-out split"| evaluation
+    smoke-model -->|"SmokeModel.load reads model.joblib + schema.json"| evaluation

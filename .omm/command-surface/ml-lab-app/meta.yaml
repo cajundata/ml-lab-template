@@ -1,0 +1,10 @@
+created: 2026-07-13T16:43:36.826Z
+updated: 2026-07-13T16:43:39.216Z
+update_count: 2
+last_field: diagram
+kind: nested-class
+title: ml-lab-app
+children:
+  - evaluate-smoke
+  - train-smoke
+parentPath: []

@@ -1,0 +1,28 @@
+graph LR
+    lifecycle["Lifecycle Spine\nsrc/ml_lab/gpu/lifecycle.py"]
+    create["Create + Capacity Retry\nsrc/ml_lab/gpu/create.py"]
+    teardown["Teardown\nsrc/ml_lab/gpu/teardown.py"]
+    audit["Audit\nsrc/ml_lab/gpu/audit.py"]
+    benchmark-driver["Benchmark Driver\nsrc/ml_lab/gpu/benchmark.py"]
+    cloud-init["Cloud-Init Renderer\nsrc/ml_lab/gpu/cloud_init.py"]
+    gpu-env["Env Loader\nsrc/ml_lab/gpu/gpu_env.py"]
+    do-client["doctl and DO REST Seam\nsrc/ml_lab/gpu/do_client.py"]
+    remote["SSH and SCP Seam\nsrc/ml_lab/gpu/remote.py"]
+    spaces-upload["DO Spaces Seam\nsrc/ml_lab/gpu/spaces.py"]
+
+    lifecycle -->|"reads .env, fails loud on all missing vars"| gpu-env
+    lifecycle -->|"renders self-destruct user_data"| cloud-init
+    lifecycle -->|"preflight-gated create"| create
+    lifecycle -->|"polls for public IP"| do-client
+    lifecycle -->|"wait_for_ssh, wait_for_bootstrap"| remote
+    lifecycle -->|"deliver, run, pull the bundle"| benchmark-driver
+    lifecycle -->|"upload the bundle"| spaces-upload
+    lifecycle -->|"the finally: always destroy"| teardown
+    create -->|"list sizes, probe destroy token, create droplet"| do-client
+    benchmark-driver -->|"scp up, ssh run, scp down"| remote
+    teardown -->|"destroy, then poll to absence"| do-client
+    teardown -->|"gone is not enough, the account must be clean"| audit
+    audit -->|"list lab droplets, volumes, snapshots, IPs, LBs"| do-client
+
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    class teardown concern

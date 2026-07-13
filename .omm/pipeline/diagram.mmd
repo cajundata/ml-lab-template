@@ -1,0 +1,19 @@
+graph LR
+    synthetic-data["Generate + Split\nsrc/ml_lab/data/synthetic.py"]
+    training["Train\nsrc/ml_lab/models/logistic_smoke.py"]
+    evaluation["Evaluate\nsrc/ml_lab/evaluation/logistic_eval.py"]
+    mlflow-run["One MLflow Run\nsrc/ml_lab/tracking/mlflow_utils.py"]
+    gpu-benchmark["GPU Benchmark Probes\nscripts/gpu_benchmark.py"]
+    artifact-bundle["Artifact Bundle\nartifacts/RUN_ID/ then DO Spaces"]
+
+    synthetic-data -->|"train.csv, 180 rows, seeded, no shuffle"| training
+    synthetic-data -->|"test.csv, 60 held-out rows"| evaluation
+    training -->|"model.joblib + schema.json + metadata.json, saved as a unit"| evaluation
+    training -->|"pass 1: params + train_accuracy, train_f1 -- returns run_id"| mlflow-run
+    evaluation -->|"pass 2: reopen SAME run by id, append accuracy, precision, recall, f1"| mlflow-run
+    gpu-benchmark -->|"probe JSONs + benchmark.json + nvidia-smi.txt, partial bundle always written"| artifact-bundle
+
+    classDef store fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    class mlflow-run,artifact-bundle store
+    class synthetic-data entry

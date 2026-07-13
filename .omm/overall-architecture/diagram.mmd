@@ -1,0 +1,33 @@
+graph LR
+    cli["CLI Surface\nsrc/ml_lab/cli.py + gpu/cli.py"]
+    ml-pipeline["ML Pipeline\nsrc/ml_lab/data,models,evaluation/"]
+    tracking["MLflow Tracking\nsrc/ml_lab/tracking/mlflow_utils.py"]
+    gpu-automation["GPU Automation\nsrc/ml_lab/gpu/"]
+    gpu-droplet["GPU Droplet (remote)\nscripts/cloud-init-gpu.yaml.tmpl"]
+    config["Config and Constants\nsrc/ml_lab/config.py + gpu/constants.py"]
+    local-workspace["Local Workspace\ndata/ models/ reports/ mlruns/ artifacts/"]
+    digitalocean["DigitalOcean\ndoctl + api.digitalocean.com"]
+    spaces["DO Spaces\ns3://BUCKET/ml-pathway/phase0/"]
+
+    cli -->|"train-smoke, evaluate-smoke"| ml-pipeline
+    cli -->|"run, up, down, audit"| gpu-automation
+    cli -->|"reads pinned seeds, paths, slugs"| config
+    ml-pipeline -->|"log params and metrics to one run"| tracking
+    ml-pipeline -->|"writes CSVs, model.joblib, reports"| local-workspace
+    tracking -->|"local file store"| local-workspace
+    gpu-automation -->|"reads pinned SKUs, image, timeouts"| config
+    gpu-automation -->|"doctl subprocess + REST destroy-token probe"| digitalocean
+    gpu-automation -->|"ssh, scp: bootstrap check, benchmark, pull"| gpu-droplet
+    gpu-automation -->|"pulled bundle lands here"| local-workspace
+    gpu-automation -->|"boto3 upload of the run bundle"| spaces
+    digitalocean -->|"provisions and boots with cloud-init user_data"| gpu-droplet
+    gpu-droplet -->|"self-destruct DELETE at TTL, no local involvement"| digitalocean
+
+    classDef external fill:#585b70,stroke:#585b70,color:#cdd6f4
+    classDef entry fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    classDef store fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    class cli entry
+    class digitalocean,spaces external
+    class local-workspace store
+    class gpu-droplet concern

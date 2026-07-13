@@ -1,0 +1,16 @@
+created: 2026-07-13T16:11:46.388Z
+updated: 2026-07-13T16:12:37.188Z
+update_count: 7
+last_field: note
+git_commit: e01d816
+git_branch: prod
+children:
+  - cli
+  - config
+  - digitalocean
+  - gpu-automation
+  - gpu-droplet
+  - local-workspace
+  - ml-pipeline
+  - spaces
+  - tracking

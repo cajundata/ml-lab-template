@@ -1,0 +1,21 @@
+graph LR
+    do-rest-api["DigitalOcean REST API\nsrc/ml_lab/gpu/do_client.py"]
+    doctl-cli["doctl CLI (subprocess)\nsrc/ml_lab/gpu/do_client.py"]
+    ssh-transport["OpenSSH ssh and scp\nsrc/ml_lab/gpu/remote.py"]
+    huggingface-hub["Hugging Face Hub\nscripts/gpu_benchmark.py"]
+    do-spaces["DO Spaces (S3 via boto3)\nsrc/ml_lab/gpu/spaces.py"]
+    do-metadata["DO Metadata Service\n169.254.169.254"]
+    mlflow-store["MLflow Local File Store\nsrc/ml_lab/tracking/mlflow_utils.py"]
+
+    do-rest-api -->|"destroy-token probe gates create: never provision what you cannot destroy"| doctl-cli
+    doctl-cli -->|"droplet now exists and has a public IP"| ssh-transport
+    ssh-transport -->|"benchmark runs on the droplet and pulls opt-125m down"| huggingface-hub
+    ssh-transport -->|"bundle scp'd down, then archived so it outlives the droplet"| do-spaces
+    do-metadata -->|"droplet asks who am I, then DELETEs itself at TTL"| do-rest-api
+
+    classDef external fill:#585b70,stroke:#585b70,color:#cdd6f4
+    classDef store fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    classDef concern fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e
+    class do-rest-api,doctl-cli,ssh-transport,huggingface-hub,do-metadata external
+    class do-spaces,mlflow-store store
+    class doctl-cli concern

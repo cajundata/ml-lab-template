@@ -1,0 +1,9 @@
+created: 2026-07-13T16:46:16.665Z
+updated: 2026-07-13T16:46:16.666Z
+update_count: 1
+last_field: description
+kind: nested-class
+title: nvidia-smi
+children: []
+parentPath:
+  - gpu-benchmark

@@ -1,0 +1,3 @@
+- No scheduled `gpu-audit`. A cron or CI invocation would catch a droplet stranded by `gpu-up` long before its 2h TTL fires.
+- `make clean` leaves `mlruns/` and `artifacts/` to grow unbounded (deliberately — GPU evidence is never auto-deleted), but there is no retention story at all yet.
+- Phase 1 (tabular) will need real train/evaluate commands parameterized by dataset; today's `train-smoke` / `evaluate-smoke` take no arguments at all.

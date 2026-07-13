@@ -1,0 +1,7 @@
+- **`down` always means destroy. Never power off a lab droplet — a stopped GPU droplet still bills.** This is the repo's first law. `make gpu-audit` reports anything billable; `make gpu-down DROPLET_ID=<id>` is the always-safe manual reap.
+- **Every teardown path routes through `destroy_and_verify`** (`gpu/teardown.py`). Success is defined as *the droplet does not exist AND the account audit is clean* — not "the DELETE returned 2xx".
+- **Defense in depth against stranded droplets.** Three independent layers: (a) local `try/finally` in `gpu_run`; (b) SIGINT is ignored once teardown is armed, so operator impatience cannot strand a droplet mid-destroy; (c) a systemd self-destruct timer *on the droplet* that DELETEs itself at TTL with zero local involvement. Layer (c) is what survives a `kill -9`.
+- **The destroy token is a separate, destroy-scoped DO token**, delivered to the droplet only via cloud-init into `/etc/ml-lab/run.env` at mode 0600. It is never the same token doctl authenticates with.
+- **No fallbacks in the pinned constants.** Region, image, size list, and Spaces region are pinned deliberately in `gpu/constants.py`; changing them is a decision, not a runtime accident.
+- Local half is fully deterministic: `SMOKE_SEED = 20260706` and a no-shuffle split, so `make train` is reproducible byte-for-byte (the split manifest carries SHA-256 checksums).
+- Work happens on the **`prod`** branch, not `main`.

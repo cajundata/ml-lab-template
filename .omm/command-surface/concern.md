@@ -1,0 +1,4 @@
+- **`gpu-up` leaves a billable droplet running and nothing watches you afterwards.** The on-droplet self-destruct timer will reap it at TTL (2h default), but that is a backstop, not a plan.
+- **The two dangerous commands are one character apart** (`gpu-run` / `gpu-up`) and only one of them cleans up after itself.
+- **`make clean` does not touch `mlruns/` or `artifacts/`.** That is intentional — GPU runs cost real money and their evidence is never automatically deleted — but it does mean both grow unbounded.
+- Nothing schedules `make gpu-audit`. It is only ever run when a human remembers to.
