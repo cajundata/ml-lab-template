@@ -18,6 +18,7 @@ def test_module_imports_without_gpu_libraries():
 def test_all_probes_pass_writes_full_bundle_and_exit_zero(tmp_path):
     probes = {
         "torch_cuda": lambda: {"ok": True, "cuda_available": True},
+        "transformers_smoke": lambda: {"ok": True, "generate_ok": True},
         "vllm_smoke": lambda: {"ok": True, "generate_ok": True},
         "system": lambda: {"ok": True, "os": "linux"},
         "nvidia_smi": lambda: "GPU 0: fine",
@@ -25,7 +26,7 @@ def test_all_probes_pass_writes_full_bundle_and_exit_zero(tmp_path):
     code = gpu_benchmark.run_benchmark("R1", str(tmp_path), probes)
     assert code == 0
     run_dir = tmp_path / "R1"
-    for name in ("benchmark.json", "system.json", "torch_cuda.json",
+    for name in ("benchmark.json", "system.json", "torch_cuda.json", "transformers_smoke.json",
                  "vllm_smoke.json", "nvidia-smi.txt", "benchmark.log"):
         assert (run_dir / name).exists()
     assert _read_json(run_dir / "benchmark.json")["required_ok"] is True
@@ -37,6 +38,7 @@ def test_required_probe_failure_records_error_still_writes_others_exit_one(tmp_p
 
     probes = {
         "torch_cuda": boom,  # required
+        "transformers_smoke": lambda: {"ok": True},
         "vllm_smoke": lambda: {"ok": True},
         "system": lambda: {"ok": True},
         "nvidia_smi": lambda: "smi text",
@@ -60,6 +62,7 @@ def test_optional_probe_failure_does_not_fail_the_run(tmp_path):
 
     probes = {
         "torch_cuda": lambda: {"ok": True},
+        "transformers_smoke": lambda: {"ok": True},
         "vllm_smoke": lambda: {"ok": True},
         "system": lambda: {"ok": True},
         "nvidia_smi": boom,  # optional
@@ -72,7 +75,8 @@ def test_optional_probe_failure_does_not_fail_the_run(tmp_path):
 def test_probe_returning_ok_false_fails_required(tmp_path):
     probes = {
         "torch_cuda": lambda: {"ok": True},
-        "vllm_smoke": lambda: {"ok": False, "error": "model did not load"},
+        "transformers_smoke": lambda: {"ok": False, "error": "model did not load"},
+        "vllm_smoke": lambda: {"ok": True},
         "system": lambda: {"ok": True},
         "nvidia_smi": lambda: "smi",
     }
@@ -80,9 +84,26 @@ def test_probe_returning_ok_false_fails_required(tmp_path):
     assert code == 1
 
 
+def test_vllm_smoke_is_informational_not_required(tmp_path):
+    # vLLM is a Phase-5 concern; a failed vllm_smoke must NOT fail the Phase-0 run
+    # as long as the required probes (torch_cuda, transformers_smoke) pass.
+    probes = {
+        "torch_cuda": lambda: {"ok": True},
+        "transformers_smoke": lambda: {"ok": True},
+        "vllm_smoke": lambda: {"ok": False, "error": "engine core init failed"},
+        "system": lambda: {"ok": True},
+        "nvidia_smi": lambda: "smi",
+    }
+    code = gpu_benchmark.run_benchmark("R4b", str(tmp_path), probes)
+    assert code == 0
+    assert _read_json(tmp_path / "R4b" / "benchmark.json")["required_ok"] is True
+    assert _read_json(tmp_path / "R4b" / "vllm_smoke.json")["ok"] is False
+
+
 def test_run_benchmark_creates_run_dir(tmp_path):
     probes = {
         "torch_cuda": lambda: {"ok": True},
+        "transformers_smoke": lambda: {"ok": True},
         "vllm_smoke": lambda: {"ok": True},
         "system": lambda: {"ok": True},
         "nvidia_smi": lambda: "smi",
@@ -101,6 +122,7 @@ def test_main_exits_with_run_benchmark_code(monkeypatch, tmp_path):
         gpu_benchmark, "_default_probes",
         lambda model_id: {
             "torch_cuda": lambda: {"ok": True},
+            "transformers_smoke": lambda: {"ok": True},
             "vllm_smoke": lambda: {"ok": True},
             "system": lambda: {"ok": True},
             "nvidia_smi": lambda: "smi",

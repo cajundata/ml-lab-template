@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Self-contained GPU benchmark run ON the droplet (scp'd there; no ml_lab import).
 
-Top-level imports are stdlib only so the module is importable in CI; torch / vllm are
-imported lazily inside each probe. Each probe returns {"ok": bool, ...} (or raw text
-for nvidia-smi). run_benchmark always writes a partial bundle and exits 0 iff both
-required probes (torch_cuda, vllm_smoke) pass.
+Top-level imports are stdlib only so the module is importable in CI; torch /
+transformers / vllm are imported lazily inside each probe. Each probe returns
+{"ok": bool, ...} (or raw text for nvidia-smi). run_benchmark always writes a partial
+bundle and exits 0 iff both required probes (torch_cuda, transformers_smoke) pass.
+
+vllm_smoke is INFORMATIONAL for Phase 0: vLLM is the Phase-5 *cloud serving* engine,
+and its engine-core tuning belongs there. Phase 0's required GPU-workload proof is a
+lightweight transformers generate on the pinned smoke model, which exercises the same
+torch/CUDA path without vLLM's serving machinery.
 """
 
 from __future__ import annotations
@@ -21,7 +26,8 @@ from pathlib import Path
 # (filename, required, is_text)
 PROBE_SPEC = {
     "torch_cuda": ("torch_cuda.json", True, False),
-    "vllm_smoke": ("vllm_smoke.json", True, False),
+    "transformers_smoke": ("transformers_smoke.json", True, False),
+    "vllm_smoke": ("vllm_smoke.json", False, False),  # informational (Phase-5 concern)
     "system": ("system.json", False, False),
     "nvidia_smi": ("nvidia-smi.txt", False, True),
 }
@@ -92,6 +98,36 @@ def probe_torch_cuda() -> dict:
     }
 
 
+def probe_transformers_smoke(model_id) -> dict:
+    """Required GPU-workload proof: load the pinned smoke model with transformers and
+    generate a few tokens on the GPU. Reuses the torch/CUDA path already proven by
+    probe_torch_cuda, without vLLM's serving machinery."""
+    import torch  # lazy: not importable in CI
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # lazy
+
+    start = time.perf_counter()
+    result = {
+        "ok": False, "model_id": model_id, "device": None, "load_ok": False,
+        "generate_ok": False, "token_count": 0, "elapsed_s": 0.0, "error": None,
+    }
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        result["device"] = device
+        tok = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForCausalLM.from_pretrained(model_id).to(device)
+        result["load_ok"] = True
+        inputs = tok("Hello from the ML lab", return_tensors="pt").to(device)
+        out = model.generate(**inputs, max_new_tokens=8, do_sample=False)
+        new_tokens = int(out.shape[-1] - inputs["input_ids"].shape[-1])
+        result["token_count"] = new_tokens
+        result["generate_ok"] = new_tokens > 0
+        result["ok"] = result["load_ok"] and result["generate_ok"]
+    except Exception:
+        result["error"] = traceback.format_exc()
+    result["elapsed_s"] = round(time.perf_counter() - start, 4)
+    return result
+
+
 def probe_vllm_smoke(model_id) -> dict:
     """Import vLLM, load the pinned smoke model, generate a few tokens."""
     from vllm import LLM, SamplingParams  # lazy: not importable in CI
@@ -142,6 +178,7 @@ def probe_nvidia_smi() -> str:
 def _default_probes(smoke_model_id):
     return {
         "torch_cuda": probe_torch_cuda,
+        "transformers_smoke": lambda: probe_transformers_smoke(smoke_model_id),
         "vllm_smoke": lambda: probe_vllm_smoke(smoke_model_id),
         "system": probe_system,
         "nvidia_smi": probe_nvidia_smi,
