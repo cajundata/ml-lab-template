@@ -71,6 +71,23 @@ def test_resolve_region_size_not_found(monkeypatch):
         create.resolve_region("gpu-h200x1-141gb")
 
 
+def test_resolve_region_excludes_tried(monkeypatch):
+    # atl1 already 422'd this create; the next resolve must skip it and pick nyc2.
+    monkeypatch.setattr(
+        do_client, "list_sizes",
+        lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["atl1", "nyc2"]}],
+    )
+    assert create.resolve_region("gpu-h200x1-141gb", exclude={"atl1"}) == "nyc2"
+
+
+def test_resolve_region_none_when_no_candidate(monkeypatch):
+    # only atl1 (== DO_REGION) reported, and it's excluded -> no region left to try.
+    monkeypatch.setattr(
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["atl1"]}]
+    )
+    assert create.resolve_region("gpu-h200x1-141gb", exclude={"atl1"}) is None
+
+
 def test_validate_constants_image_missing(monkeypatch):
     _valid(monkeypatch)
     monkeypatch.setattr(do_client, "list_image_slugs", lambda: ["other"])
@@ -149,6 +166,63 @@ def test_create_lab_droplet_uses_resolved_region(monkeypatch, capsys):
     assert calls["kwargs"]["region"] == "nyc2"
     assert result["region"] == "nyc2"
     assert "region: nyc2" in capsys.readouterr().out
+
+
+def test_create_lab_droplet_retries_region_on_422(monkeypatch):
+    # GPU capacity flips between resolve and create: atl1 422s "not available in this
+    # region", so create must retry the size's next live region (nyc2) and land there.
+    _happy(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_sizes",
+        lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["atl1", "nyc2"]}],
+    )
+    tried = []
+
+    def flaky_create(**kw):
+        tried.append(kw["region"])
+        if kw["region"] == "atl1":
+            raise do_client.DOClientError(
+                'doctl ... failed: {"errors":[{"detail":"POST ...: 422 ... '
+                'Size is not available in this region."}]}'
+            )
+        return {"id": 42, "name": kw["name"], "status": "new"}
+
+    monkeypatch.setattr(do_client, "create_droplet", flaky_create)
+    result = create.create_lab_droplet("#cloud-config\n", run_id="r", now=1783728000.0)
+    assert tried == ["atl1", "nyc2"]  # 422 on atl1, retried nyc2
+    assert result["region"] == "nyc2"
+
+
+def test_create_lab_droplet_reraises_non_capacity_error(monkeypatch):
+    # A non-capacity doctl error must NOT be swallowed by the region retry loop.
+    _happy(monkeypatch)
+
+    def boom(**kw):
+        raise do_client.DOClientError("doctl ... failed: some other 500 error")
+
+    monkeypatch.setattr(do_client, "create_droplet", boom)
+    with pytest.raises(do_client.DOClientError, match="500"):
+        create.create_lab_droplet("#cloud-config\n", run_id="r", now=1783728000.0)
+
+
+def test_create_lab_droplet_raises_when_no_capacity_window(monkeypatch):
+    # Every region 422s and the bounded wait elapses -> a clear no-capacity error.
+    _happy(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["atl1"]}]
+    )
+
+    def always_422(**kw):
+        raise do_client.DOClientError(
+            'doctl ... failed: {"errors":[{"detail":"422 ... Size is not available in this region."}]}'
+        )
+
+    monkeypatch.setattr(do_client, "create_droplet", always_422)
+    monkeypatch.setattr(create.time, "sleep", lambda s: None)
+    clock = iter([0.0] + [10_000.0] * 20)
+    monkeypatch.setattr(create.time, "monotonic", lambda: next(clock))
+    with pytest.raises(ConstantsError, match="capacity"):
+        create.create_lab_droplet("#cloud-config\n", run_id="r", now=1783728000.0)
 
 
 def test_create_lab_droplet_refuses_when_exists(monkeypatch):

@@ -23,6 +23,8 @@ DESTROY_POLL_INTERVAL_SECONDS = 10  # cadence for absence polling (added; not in
 REMOTE_POLL_INTERVAL_SECONDS = 15  # cadence for ssh-readiness / bootstrap-marker polling
 SSH_ATTEMPT_TIMEOUT_SECONDS = 30  # subprocess timeout bounding a single ssh attempt
 SCP_TIMEOUT_SECONDS = 120  # bounds a single scp transfer (small script up / bundle down)
+CREATE_CAPACITY_WAIT_SECONDS = 180  # bounded poll for a GPU capacity window before giving up
+CREATE_CAPACITY_POLL_INTERVAL_SECONDS = 20  # re-probe cadence while no region has capacity
 
 # Identity / audit matching
 DROPLET_NAME_PREFIX = "ml-lab-gpu-"
