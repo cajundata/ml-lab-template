@@ -1,0 +1,318 @@
+
+# ML Pathway - Master Plan
+
+> [!abstract] Governing direction
+> This pathway is not a certificate track and not a library survey. It is a capability-development program for Cajun Data / Sailfish Business Tools. Each phase pairs first-principles implementation with applied systems work. Python is the model-development environment; Go is the durable service and deployment layer. The commercial center of gravity is local-first small-business tooling: tabular decision support, document intelligence, retrieval, evaluation, local inference, and appliance-style deployment.
+
+**Core principle:** Every stage must produce both understanding and a reusable Sailfish-relevant asset.
+
+**Pacing:** Self-directed. Progress is gated by comprehension, not by the calendar. A phase is complete when its verification gates pass, not when a set amount of time has elapsed. Do not rush a gate to stay on an imagined schedule, and do not linger in a phase whose gates have already passed.
+
+---
+
+## Decision Log
+
+All open items are resolved. This plan is converged.
+
+| # | Decision | Status |
+|---|----------|--------|
+| 1 | Strict parity gates: linear/logistic must match scikit-learn to ~1e-4 in pytest; tree/boosting held to explain-the-divergence standard | Locked |
+| 2 | Reading spine added, ISLP (Python edition) replaces ISLR; reading supports implementation, never becomes a second curriculum | Locked |
+| 3 | Publication filter adopted (five criteria below); promotion decided at phase boundaries, at most one note promoted per phase | Locked |
+| 4 | Temporal validation mandatory for any time-indexed dataset | Locked |
+| 5 | DigitalOcean is the committed GPU provider; three-rung compute ladder; create-benchmark-destroy automated via provisioning script | Locked |
+| 6 | Phase 1 dataset: **UCI Bank Marketing**, `bank-additional-full.csv` variant, original row order preserved | Locked |
+| 7 | TRL/DPO deferred to an optional advanced module pending a concrete Sailfish use case | Locked |
+| 8 | Pacing is self-directed and comprehension-gated; no duration targets or weekly-hour commitments in the plan | Locked |
+
+---
+
+## Phase Overview
+
+| Phase | Focus                                                      | Detail note                                |
+| ----- | ---------------------------------------------------------- | ------------------------------------------ |
+| 0     | Project template, eval discipline, provisioning automation | [[ML Pathway - Phase 0 Setup]]             |
+| 1     | Classical ML from scratch + production tabular pipeline    | [[ML Pathway - Phase 1 Classical ML]]      |
+| 2     | Neural nets from first principles + PyTorch                | [[ML Pathway - Phase 2 Neural Nets]]       |
+| 3     | Transformer internals + Hugging Face                       | [[ML Pathway - Phase 3 Transformers]]      |
+| 4     | Embeddings, retrieval, RAG, evaluation                     | [[ML Pathway - Phase 4 Retrieval and RAG]] |
+| 5     | Local inference and model serving                          | [[ML Pathway - Phase 5 Serving]]           |
+| 6     | PEFT fine-tuning (compressed)                              | [[ML Pathway - Phase 6 Fine-Tuning]]       |
+| 7     | Sailfish ML runtime capstone                               | [[ML Pathway - Phase 7 Capstone]]          |
+
+Phases are sequenced by prerequisite, not by schedule. Each phase ends at its verification gates.
+
+---
+
+## Phase 0 - Setup and Provisioning Automation
+
+**Scope discipline:** This is a setup phase, not a learning phase. The standard is **minimum viable training infrastructure**, not elegant platform engineering. The repo skeleton pattern is familiar; polishing a template is procrastination with good optics. Build it, gate it, move on.
+
+The only Phase 0 outputs that matter:
+
+1. A reusable repo skeleton
+2. `make test`, `make train`, `make evaluate`
+3. MLflow running locally
+4. A dummy model passing the full lifecycle
+5. A DO GPU provisioning/teardown script that cannot leave a powered-off GPU billing silently
+
+Everything else can wait.
+
+Build the reusable `ml-lab-template/` structure: `data/`, `src/` (data, models, evaluation, serving), `tests/`, `reports/`, `models/`, with uv, pytest, MLflow, and a task runner from day one.
+
+**Added deliverable, the compute automation script:** a `doctl` or Terraform provisioning tool with cloud-init for the CUDA/vLLM stack, artifacts and benchmark results pushed to DigitalOcean Spaces, and automatic teardown. One command up, one command down. This converts the GPU billing footgun into a non-problem and becomes a reusable Sailfish asset (the same pattern serves future client-facing model evaluations).
+
+**Gate:** `make test`, `make train`, `make evaluate` all run against a dummy model before Phase 1 begins.
+
+---
+
+## Phase 1 - Classical ML: First Principles to Deployable Tabular Model
+
+**Libraries:** scikit-learn, one boosted library (XGBoost or LightGBM), MLflow, ONNX Runtime
+
+### Dataset (locked): UCI Bank Marketing
+
+Use `bank-additional-full.csv` (41,188 examples, 20 inputs, ordered by date from May 2008 to November 2010) unless Phase 1 analysis proves a better variant. **Preserve original row order. Do not shuffle before temporal split.** The original row index is part of the validation design.
+
+Chosen deliberately over a prettier business fit because it carries two lessons that matter most for Sailfish work:
+
+1. **The leakage trap.** The `duration` feature (call length) massively predicts the target but is not knowable before the call happens. Finding it, proving it inflates metrics, and removing it is the lesson.
+2. **Temporal structure.** Campaigns run chronologically, so Milestone 4's split design is temporal from the start (train on earlier records, test on later), not retrofitted.
+
+For Bank Marketing, temporal validation means splitting by original chronological row order, not by random split. If later datasets include explicit invoice, quote, customer, or transaction timestamps, split by timestamp directly.
+
+Framing: contact prioritization decision support for a small business, not a tutorial dataset.
+
+### Part A - From Scratch (NumPy)
+
+| Algorithm | Verification standard |
+|-----------|----------------------|
+| Linear regression | Match scikit-learn to ~1e-4 (matched preprocessing/regularization), enforced in pytest |
+| Logistic regression | Match scikit-learn to ~1e-4 (matched solver assumptions/regularization), enforced in pytest |
+| Decision tree | Explain divergences (split policy, stopping rules, tie-breaking, impurity) via controlled toy examples |
+| Simple boosting loop | Explain divergences (weak learner choice, residual handling, shrinkage, loss, depth) |
+
+The explain-the-difference standard applies only where implementation choices legitimately diverge. For linear/logistic it is a loophole; the numeric gate closes it.
+
+### Part B - Applied Pipeline
+
+- Full scikit-learn `Pipeline` with `ColumnTransformer`
+- Models: dummy baseline, logistic regression, random forest, **one** boosted model (no three-library shootout; write a short memo comparing the others from documentation)
+- MLflow logging from run one
+- Metrics: ROC-AUC, precision, recall, F1, confusion matrix, calibration curve
+- **Temporal validation as the primary deployment-like metric**
+- Segment-level error analysis
+- Export best model to ONNX; small Go inference demo using a vetted third-party ONNX Runtime Go wrapper, a thin C API wrapper, or a local HTTP inference boundary (Go is not a first-class official ONNX Runtime API), the train-in-Python, ship-a-client-owned-binary story
+
+### Milestones
+
+1. Problem brief (`PROJECT_BRIEF.md`: decision supported, target, metrics, leakage risks, business action)
+2. From-scratch linear and logistic + parity tests
+3. From-scratch tree and boosting + explainer
+4. scikit-learn production pipeline with temporal split
+5. One boosted model + selection memo
+6. Final evaluation and error analysis (including: is `duration` leakage proven and removed?)
+7. Artifact and deployment step (joblib, ONNX, metadata, `predict.py`, optional Go demo per the wrapper/C-API/HTTP-boundary options above)
+
+---
+
+## Phase 2 - Neural Networks from First Principles into PyTorch
+
+**Libraries:** PyTorch
+
+Build a micrograd-style scalar autograd engine, a tiny MLP trained with it, and a manual training loop. Then rebuild in PyTorch: tensors, `nn.Module`, `Dataset`/`DataLoader`, optimizers, checkpoints, CUDA device placement.
+
+**Gates:** gradient check (hand-computed vs autograd), loss curve shows learning, overfit a tiny batch, explain forward/backward/optimizer step without notes.
+
+---
+
+## Phase 3 - Transformer Internals before Hugging Face Abstraction
+
+**Libraries:** PyTorch, then Transformers/Datasets
+
+The keystone correction to the original plan. Build tokenization, token and positional embeddings, scaled dot-product attention, multi-head attention, the full transformer block, and a tiny GPT-style model trained on a small corpus (nanoGPT scale, runs on the Legion 7). Add a generation loop.
+
+Then, and only then, the Hugging Face text-classification project, where `Trainer` becomes a convenience you can see through rather than an oracle.
+
+**Gates:** explain Q/K/V without notes, trace tensor shapes through attention, overfit a tiny text sample, map what `Trainer` does underneath.
+
+---
+
+## Phase 4 - Embeddings, Retrieval, RAG, and Evaluation
+
+**Libraries:** Sentence Transformers, FAISS or Chroma (NumPy cosine baseline first)
+
+**Order is non-negotiable:** corpus, retrieval, evaluation harness, measured retrieval quality, and only then generation. Eval questions and expected sources come before any demo. Never chatbot-then-vibes.
+
+**Corpus:** fake SOPs plus a price book for the fictional Acadiana Property Services. Do not use my own planning docs as the primary corpus; I wrote them, so retrieval failures would be invisible to me.
+
+Build: multi-chunk-size testing, embeddings, vector index, 30-50 query eval set, recall@k and MRR, keyword-search baseline comparison, then RAG with source-ID grounding and "not found in source material" refusal behavior.
+
+**Gates:** semantic vs keyword baseline compared, retrieval metrics calculated before RAG exists, failure log maintained, answers cite retrieved chunks.
+
+Feeds directly into the Sailfish local knowledge-box / Business Hub story.
+
+---
+
+## Phase 5 - Local Inference and Model Serving
+
+**Tools:** llama.cpp, vLLM, ONNX Runtime, OpenAI-compatible APIs
+
+Local track (Legion 7 / RTX 5080 16GB): llama.cpp, GGUF, quantization ladder (Q4/Q5/Q8) measured against the Phase 4 eval set, appliance-realism constraints.
+
+Cloud track (DigitalOcean): vLLM serving tests per the compute policy below, latency / tokens-per-sec / memory / concurrency benchmarks, OpenAI-compatible endpoints. Reuse Phase 4 prompts as the benchmark workload and serve the Phase 1 ONNX model through the runtime path.
+
+**Deliverable:** written deployment recommendation mapped to the Sailfish delivery spectrum (local binary to hosted).
+
+---
+
+## Phase 6 - Fine-tuning, Deferred and Compressed
+
+**Libraries:** PEFT, Transformers, Datasets, Accelerate
+
+LoRA/QLoRA adapter on a small instruct model, 100-1,000 examples, before/after evaluation on a held-out set, compared against the non-fine-tuned prompting/RAG baseline. Prior QLoRA exposure makes this consolidation, not new territory.
+
+Order of value for small-business tooling: workflow design, retrieval, evaluation, prompting/tool use, model/runtime choice, and only then fine-tuning. The deliverable is an evidence-based "was it worth it" decision memo.
+
+**TRL/DPO:** off the main path. Optional advanced module only if a concrete need appears (answer-style ranking, refusal behavior, domain response quality).
+
+---
+
+## Phase 7 - Sailfish ML Runtime Capstone
+
+**Tools:** Go, Python, ONNX Runtime, MLflow, llama.cpp/vLLM
+
+Not a portfolio toy: a first internal prototype for the Sailfish Business Hub.
+
+- Go API: `/predict`, `/search`, `/ask`, `/health`, `/models`
+- Tabular prediction via the Phase 1 ONNX artifact
+- Document search and RAG assistant from Phase 4 on a local LLM
+- MLflow lineage / exported model metadata
+- Admin view: model version, runtime status, last eval score
+- Evaluation endpoint running known test prompts/records with pass/fail
+- Local-first packaging (Docker Compose or appliance-style)
+
+Positioning it proves: Python for model development, Go for durable small-business systems, local inference where ownership and privacy matter, hosted where operationally appropriate.
+
+---
+
+## Reading Spine
+
+Thin by design. Reading supports the implementation; it does not become a second curriculum.
+
+| Phase | Reading | Notes |
+|-------|---------|-------|
+| 1 | **ISLP** (*An Introduction to Statistical Learning with Applications in Python*, James, Witten, Hastie, Tibshirani, Taylor): **Ch. 4 Classification, Ch. 5 Resampling Methods, Ch. 8 Tree-Based Methods** | Read the chapters, skip the book's labs. ISLP's labs use the authors' pedagogical `ISLP` package; the Phase 1 milestones in plain scikit-learn are the lab work. Free PDF from the authors' site. |
+| 2-3 | **Karpathy, Neural Networks: Zero to Hero** | Backbone for micrograd, backprop, MLPs, and the tiny GPT |
+| 3 | **The Illustrated Transformer** + **Attention Is All You Need** | Read before building the tiny transformer |
+| 4 | **Sentence-BERT paper** | Why sentence embeddings are not just averaged token embeddings |
+
+R stays in the back pocket; no role required in this pathway.
+
+---
+
+## Compute Policy
+
+**Provider:** DigitalOcean (committed; all infrastructure already lives there). RunPod is fallback only, for disposable short experiments if DO pricing or availability is inefficient.
+
+### The Three-rung Ladder
+
+| Rung | Hardware | Rate | Role |
+|------|----------|------|------|
+| 1 | Legion 7 / RTX 5080 16GB (local) | n/a | llama.cpp, GGUF quantization, appliance realism, small embedding/RAG tests, tiny-GPT training |
+| 2 | DO RTX 4000 Ada 20GB | ~$0.76/GPU/hr | vLLM smoke tests, small-model serving |
+| 3 | DO RTX 6000 Ada or L40S 48GB | ~$1.57/GPU/hr | Default serious cloud serving target; 7-14B with headroom, heavier RAG benchmarks, Phase 6 fine-tuning if VRAM-constrained |
+
+**H100 (~$3.39/hr) requires written justification** (realistically only a high-concurrency benchmark). **H200 and MI300X are off the table**: nothing in Phases 5-6 needs the memory, and MI300X means ROCm friction that teaches nothing transferable.
+
+Rates are current as of 2026-07-06 and must be rechecked before provisioning.
+
+### Operational Rule
+
+> [!warning] Create, benchmark, save artifacts, destroy. Never merely power off.
+> DO bills powered-off GPU Droplets because disk, CPU, RAM, IP, and GPU capacity stay allocated. Billing ends only on destroy. The Phase 0 provisioning script makes this automatic, not a discipline problem.
+
+---
+
+## Feedback Loops (binding across All phases)
+
+### 1. Parity Checks
+
+Every from-scratch implementation is compared against a known reference: linear/logistic vs scikit-learn (numeric, pytest), autograd vs PyTorch, attention output vs a PyTorch reference, retrieval vs keyword baseline, ONNX inference vs native Python inference.
+
+### 2. Teach-back Documents
+
+One written explanation per phase, working-note quality by default:
+
+| Phase | Teach-back |
+|-------|-----------|
+| 1 | How supervised tabular ML works |
+| 2 | How backpropagation works |
+| 3 | How transformer attention works |
+| 4 | Why retrieval quality controls RAG quality |
+| 5 | Local inference tradeoffs |
+| 6 | When fine-tuning is worth it |
+| 7 | How Sailfish deploys local ML safely |
+
+### 3. Evaluation before Generation
+
+For RAG and LLM systems: eval questions, expected sources, retrieval metrics, answer evaluation, then app interface. In that order.
+
+### 4. Spaced Re-derivation
+
+At the start of each phase, re-derive one key concept from the prior phase, from a blank page:
+
+| Before starting | Re-derive |
+|-----------------|-----------|
+| Phase 2 | Logistic regression loss and gradient |
+| Phase 3 | Backprop through a simple MLP |
+| Phase 4 | Q/K/V attention |
+| Phase 5 | Embedding similarity and recall@k |
+| Phase 6 | Transformer fine-tuning objective |
+| Phase 7 | End-to-end model lifecycle |
+
+### 5. Deployment Reality Checks
+
+Every phase after Phase 1 answers: Could this become part of a Sailfish Business Hub or service offering? If yes, what is the deployment boundary? If no, what did I learn that still matters?
+
+---
+
+## Publication Filter
+
+Working notes stay internal by default. **At each phase boundary** (not continuously; polish-drift mid-phase is the failure mode), run the phase's notes through the filter and **promote at most one** to a published Cajun Data technical note.
+
+A note is publication-worthy only if it does at least one of the following:
+
+1. Demonstrates technical judgment relevant to Cajun Data / Sailfish
+2. Explains a practical ML concept for small-business systems
+3. Supports the local-first / Business Hub positioning
+4. Could help attract a technical partner, launch partner, or sophisticated customer
+5. Shows measured results, not just opinions
+
+| Document type | Default bar | Publish? |
+|---------------|-------------|----------|
+| Error analysis | Internal working note | Case by case |
+| Decision memo | Internal working note | Case by case |
+| Explainer | Internal first, polish only if strong | Case by case |
+| Benchmark report | Higher polish if positioning-relevant | Likely candidate |
+| Capstone architecture memo | High polish | Likely publishable |
+
+---
+
+## What Was Cut, and why
+
+| Cut | Reason |
+|-----|--------|
+| Three-library boosting shootout | 95% the same idea; differences learnable in a day of reading; API trivia, not ML |
+| Standalone MLflow project | Tracking is instrumentation from day one, like logging, not a milestone |
+| Standalone ONNX project | Export is a deployment task inside Phase 1, not a learning arc |
+| TRL/DPO on the main path | Near-zero ROI for small-business tooling now; prerequisites will be in place if a need appears |
+| ISLP package labs | Learning a textbook-only wrapper is the library-API time sink this plan exists to avoid |
+| H200 / MI300X compute options | No workload justifies them; ROCm is a second toolchain that teaches nothing transferable |
+| Duration targets and weekly-hour commitments | Pacing is self-directed; phases end at verification gates, not on a schedule |
+
+---
+
+## Next Action
+
+Phase 0: repo template, verification gates, and the DO provisioning/teardown script. Keep it tight; it is setup, not learning. Then [[ML Pathway - Phase 1 Classical ML]] begins with the project brief for Bank Marketing.
