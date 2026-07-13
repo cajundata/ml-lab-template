@@ -1,7 +1,7 @@
 # Phase 0 — GPU Live Failure-Path Gates Slice (S4) (Design)
 
 Date: 2026-07-12
-Status: Approved (design), pending implementation plan
+Status: **EXECUTED 2026-07-13 — all four gates PASS; Phase 0 complete** (see Results log)
 
 ## Context
 
@@ -242,8 +242,8 @@ fixes below). All seams were mocked through S3; these are the first real runs.
 |---|---|---|---|---|---|
 | 0 — happy path | `make gpu-run` | 584169607 | 20260713-e72290 | **PASS** (exit 0) | Multi-SKU landed **H200/nyc2** (H100 gave a free 422). Required probes both `ok`: `torch_cuda` (matmul on GPU), `transformers_smoke` (opt-125m loaded on cuda, 8 tokens, 3.4s). `vllm_smoke` informational → FAILED (engine-core init; deferred to Phase 5). `nvidia_smi`/`system` ok. Spaces upload `s3://cajundata-ml-lab/ml-pathway/phase0/20260713-e72290/`. `finally` teardown → audit clean. |
 | 1 — Ctrl-C mid-run | `make gpu-run` + 2× SIGINT | 584170627 | 20260713-f25bc2 | **PASS** (exit 130) | H200/nyc2. SIGINT #1 (21:26:33) → `finally` teardown began; SIGINT #2 (21:26:36, during teardown) **ignored** (SIG_IGN) — teardown not aborted. Droplet destroyed → audit clean. Double-Ctrl-C operator-impatience hardening proven. |
-| 2 — kill -9 self-destruct | `do_gpu.py up --ttl-seconds 900` + `kill -9` | 584171144 | 20260713-f9… | *in progress* | H100/nyc2. `kill -9` (pkill -9) at 21:28:46 right after PID print — no local cleanup ran. Awaiting remote systemd self-destruct (OnBootSec=900s ≈ ~21:43). |
-| 3 — fresh-shell audit | `make gpu-audit` | — | — | *pending* | After Gate 2 self-destruct confirmed. |
+| 2 — kill -9 self-destruct | `do_gpu.py up --ttl-seconds 900` + `kill -9` | 584171144 | — | **PASS** | H100/nyc2. `pkill -9` at 21:28:46 right after PID print — **no local cleanup ran**. The remote systemd timer self-destructed the droplet **~16 min later (21:45:45)** with zero local involvement; `get_droplet` → None, audit clean. Proves the master plan's binding rule (survives operator failure / terminal loss). |
+| 3 — fresh-shell audit | `make gpu-audit` | — | — | **PASS** | Cold audit (fresh subprocess, no in-memory state): no droplets/volumes/snapshots/reserved-ips/load-balancers. Nothing leaked across all four lifetimes. |
 
 ### S4 live findings (all surfaced by live execution; each fixed + committed)
 
