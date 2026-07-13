@@ -17,7 +17,6 @@ from ml_lab.gpu.cloud_init import render_cloud_init
 from ml_lab.gpu.constants import (
     BOOTSTRAP_TIMEOUT_SECONDS,
     DEFAULT_TTL_SECONDS,
-    DO_SIZE_SLUG,
     REMOTE_POLL_INTERVAL_SECONDS,
     SELF_DESTRUCT_RETRY_SECONDS,
     SSH_TIMEOUT_SECONDS,
@@ -61,7 +60,7 @@ def _print_handoff(result, ip, ttl_seconds):
         f"  id: {result['id']}\n"
         f"  name: {result['name']}\n"
         f"  region: {result['region']}\n"
-        f"  size: {DO_SIZE_SLUG}\n"
+        f"  size: {result['size']}\n"
         f"  public-ip: {ip}\n"
         f"  ttl: {ttl_seconds} seconds\n"
         f"  self-destruct retry: {SELF_DESTRUCT_RETRY_SECONDS} seconds\n"

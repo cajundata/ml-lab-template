@@ -69,7 +69,7 @@ def test_gpu_up_happy_leaves_droplet_alive(monkeypatch, capsys):
     destroyed = {}
     monkeypatch.setattr(
         lifecycle, "create_lab_droplet",
-        lambda ud, **k: {"id": 42, "name": "ml-lab-gpu-phase0-r", "run_id": "r", "region": "atl1"},
+        lambda ud, **k: {"id": 42, "name": "ml-lab-gpu-phase0-r", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"},
     )
     _stub_waits_ok(monkeypatch)
     monkeypatch.setattr(lifecycle, "destroy_and_verify", lambda did: destroyed.setdefault("id", did))
@@ -84,7 +84,7 @@ def test_gpu_up_happy_leaves_droplet_alive(monkeypatch, capsys):
 def test_gpu_up_ssh_timeout_destroys_and_reraises(monkeypatch):
     destroyed = {}
     monkeypatch.setattr(
-        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
     )
     monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
 
@@ -101,7 +101,7 @@ def test_gpu_up_ssh_timeout_destroys_and_reraises(monkeypatch):
 def test_gpu_up_bootstrap_timeout_destroys_and_reraises(monkeypatch):
     destroyed = {}
     monkeypatch.setattr(
-        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
     )
     monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
     monkeypatch.setattr(lifecycle, "wait_for_ssh", lambda ip, **k: None)
@@ -119,7 +119,7 @@ def test_gpu_up_bootstrap_timeout_destroys_and_reraises(monkeypatch):
 def test_gpu_up_keyboardinterrupt_after_create_destroys(monkeypatch):
     destroyed = {}
     monkeypatch.setattr(
-        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
     )
     monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
 
@@ -151,7 +151,7 @@ def test_gpu_up_threads_ttl_and_enforce_budget(monkeypatch):
 
     def capture(ud, **k):
         seen.update(k)
-        return {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        return {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
 
     monkeypatch.setattr(lifecycle, "create_lab_droplet", capture)
     _stub_waits_ok(monkeypatch)
@@ -164,7 +164,7 @@ def test_gpu_up_threads_ttl_and_enforce_budget(monkeypatch):
 
 def test_gpu_up_teardown_failure_propagates_and_chains_original(monkeypatch):
     monkeypatch.setattr(
-        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        lifecycle, "create_lab_droplet", lambda ud, **k: {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
     )
     monkeypatch.setattr(lifecycle, "wait_for_public_ip", lambda did, **k: "1.2.3.4")
 
@@ -196,7 +196,7 @@ def _stub_run_seams(monkeypatch, *, benchmark_code=0, order=None):
 
     def create(ud, **k):
         order.append("create")
-        return {"id": 42, "name": "n", "run_id": "r", "region": "atl1"}
+        return {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"}
 
     monkeypatch.setattr(lifecycle, "create_lab_droplet", create)
     monkeypatch.setattr(
@@ -283,7 +283,7 @@ def test_gpu_run_preflight_spaces_failure_creates_nothing(monkeypatch):
     monkeypatch.delenv("SPACES_BUCKET", raising=False)
     monkeypatch.setattr(
         lifecycle, "create_lab_droplet",
-        lambda ud, **k: created.setdefault("hit", True) or {"id": 42, "name": "n", "run_id": "r", "region": "atl1"},
+        lambda ud, **k: created.setdefault("hit", True) or {"id": 42, "name": "n", "run_id": "r", "region": "atl1", "size": "gpu-h100x1-80gb"},
     )
     # env supplied, spaces left to load from the (empty) environment → fails before create.
     with pytest.raises(gpu_env.GpuEnvError):

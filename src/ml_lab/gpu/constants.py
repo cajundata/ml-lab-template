@@ -2,8 +2,12 @@
 
 # Toolchain / image / placement
 DO_REGION = "nyc2"  # PREFERRED region only; GPU capacity flips regions per-minute, so create.resolve_region picks the live region for the size at create time
-DO_SIZE_SLUG = "gpu-h100x1-80gb"  # Nvidia H100 80GB single-GPU (type nvidia_h100); H200 (gpu-h200x1-141gb) had sustained no capacity at S4 live
-DO_GPU_RUNG = "H100"
+# Single-GPU capacity on this account flaps across BOTH regions and SKUs (S4 live), so
+# create tries these interchangeable SKUs in order and lands whichever has capacity.
+# Hopper (H100/H200) first — proven to boot gpu-h100x1-base at S4 live; L40S (Ada) last.
+ACCEPTABLE_SIZE_SLUGS = ["gpu-h100x1-80gb", "gpu-h200x1-141gb", "gpu-l40sx1-48gb"]
+DO_SIZE_SLUG = ACCEPTABLE_SIZE_SLUGS[0]  # preferred/default (resolve_region default arg, display fallback)
+DO_GPU_RUNG = "H100/H200/L40S (interchangeable single-GPU)"
 DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; native target for H100 (boots; proven on Hopper H200 at S4 live)
 SMOKE_MODEL_ID = "facebook/opt-125m"
 

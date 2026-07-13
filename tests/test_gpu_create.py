@@ -4,12 +4,19 @@ from ml_lab.gpu import create, do_client
 from ml_lab.gpu.create import ConstantsError
 
 
+def _all_sizes(h100_regions=("nyc2",), h200_regions=("nyc2",), l40s_regions=("tor1",)):
+    """The three acceptable SKUs as DO would list them (regions tunable per test)."""
+    return [
+        {"slug": "gpu-h100x1-80gb", "regions": list(h100_regions)},
+        {"slug": "gpu-h200x1-141gb", "regions": list(h200_regions)},
+        {"slug": "gpu-l40sx1-48gb", "regions": list(l40s_regions)},
+    ]
+
+
 def _valid(monkeypatch):
     """Mock do_client so validate_constants passes for the corrected constants."""
-    monkeypatch.setattr(do_client, "list_region_slugs", lambda: ["nyc2"])
-    monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-h100x1-80gb", "regions": ["nyc2"]}]
-    )
+    monkeypatch.setattr(do_client, "list_region_slugs", lambda: ["nyc2", "atl1", "tor1"])
+    monkeypatch.setattr(do_client, "list_sizes", _all_sizes)
     monkeypatch.setattr(do_client, "list_image_slugs", lambda: ["gpu-h100x1-base"])
 
 
@@ -19,6 +26,7 @@ def test_validate_constants_passes(monkeypatch):
 
 
 def test_validate_constants_size_missing(monkeypatch):
+    # An acceptable SKU absent from the account -> preflight fails.
     _valid(monkeypatch)
     monkeypatch.setattr(do_client, "list_sizes", lambda: [{"slug": "other", "regions": ["atl1"]}])
     with pytest.raises(ConstantsError):
@@ -26,11 +34,12 @@ def test_validate_constants_size_missing(monkeypatch):
 
 
 def test_validate_constants_ignores_region(monkeypatch):
-    # Region is resolved live at create time (resolve_region), not gated here, so a
-    # size whose live regions exclude DO_REGION still passes preflight.
+    # Region/capacity is resolved live at create time, not gated here: acceptable SKUs
+    # present (even with regions that exclude DO_REGION) still pass preflight.
     _valid(monkeypatch)
     monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-h100x1-80gb", "regions": ["sfo3"]}]
+        do_client, "list_sizes",
+        lambda: _all_sizes(h100_regions=["sfo3"], h200_regions=["sfo3"], l40s_regions=["sfo3"]),
     )
     create.validate_constants()  # no raise
 
@@ -137,6 +146,7 @@ def test_create_lab_droplet_happy(monkeypatch, capsys):
         "id": 42,
         "name": "ml-lab-gpu-phase0-20260711-abc123",
         "run_id": "20260711-abc123",
+        "size": "gpu-h100x1-80gb",  # first acceptable SKU, has capacity
         "region": "nyc2",
     }
     kw = calls["kwargs"]
@@ -149,37 +159,33 @@ def test_create_lab_droplet_happy(monkeypatch, capsys):
     assert f"ttl-expiry-{1783728000 + 7200}" in kw["tags"]
     out = capsys.readouterr().out
     assert "id: 42" in out
-    assert "ml-lab-gpu-phase0-20260711-abc123" in out
+    assert "size: gpu-h100x1-80gb" in out
     assert "local_pid:" in out
 
 
 def test_create_lab_droplet_uses_resolved_region(monkeypatch, capsys):
-    # nyc2 (DO_REGION) capacity gone; DO reports the size only in atl1 now. Create
-    # must follow the live signal to atl1, and the printed/returned region matches.
+    # nyc2 (DO_REGION) capacity gone for the first SKU; DO reports it only in atl1 now.
+    # Create must follow the live signal to atl1; printed/returned region matches.
     calls = _happy(monkeypatch)
-    monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-h100x1-80gb", "regions": ["atl1"]}]
-    )
+    monkeypatch.setattr(do_client, "list_sizes", lambda: _all_sizes(h100_regions=["atl1"]))
     result = create.create_lab_droplet(
         "#cloud-config\n", run_id="20260711-abc123", now=1783728000.0
     )
+    assert calls["kwargs"]["size"] == "gpu-h100x1-80gb"
     assert calls["kwargs"]["region"] == "atl1"
     assert result["region"] == "atl1"
     assert "region: atl1" in capsys.readouterr().out
 
 
 def test_create_lab_droplet_retries_region_on_422(monkeypatch):
-    # GPU capacity flips between resolve and create: the preferred region (nyc2) 422s
-    # "not available in this region", so create must retry the next live region (atl1).
+    # Capacity flips between resolve and create: preferred region nyc2 422s, so create
+    # retries the same SKU's next live region (atl1) before moving to another SKU.
     _happy(monkeypatch)
-    monkeypatch.setattr(
-        do_client, "list_sizes",
-        lambda: [{"slug": "gpu-h100x1-80gb", "regions": ["atl1", "nyc2"]}],
-    )
+    monkeypatch.setattr(do_client, "list_sizes", lambda: _all_sizes(h100_regions=["atl1", "nyc2"]))
     tried = []
 
     def flaky_create(**kw):
-        tried.append(kw["region"])
+        tried.append((kw["size"], kw["region"]))
         if kw["region"] == "nyc2":
             raise do_client.DOClientError(
                 'doctl ... failed: {"errors":[{"detail":"POST ...: 422 ... '
@@ -189,12 +195,37 @@ def test_create_lab_droplet_retries_region_on_422(monkeypatch):
 
     monkeypatch.setattr(do_client, "create_droplet", flaky_create)
     result = create.create_lab_droplet("#cloud-config\n", run_id="r", now=1783728000.0)
-    assert tried == ["nyc2", "atl1"]  # 422 on preferred nyc2, retried atl1
+    assert tried == [("gpu-h100x1-80gb", "nyc2"), ("gpu-h100x1-80gb", "atl1")]
+    assert result["size"] == "gpu-h100x1-80gb"
     assert result["region"] == "atl1"
 
 
+def test_create_lab_droplet_falls_back_to_next_sku(monkeypatch):
+    # The first SKU (H100) has no capacity anywhere; create must fall through to the
+    # next acceptable SKU (H200) and land there.
+    _happy(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_sizes",
+        lambda: _all_sizes(h100_regions=["nyc2"], h200_regions=["nyc2"]),
+    )
+    landed = []
+
+    def flaky_create(**kw):
+        if kw["size"] == "gpu-h100x1-80gb":
+            raise do_client.DOClientError(
+                'doctl ... failed: {"errors":[{"detail":"422 ... Size is not available in this region."}]}'
+            )
+        landed.append(kw["size"])
+        return {"id": 42, "name": kw["name"], "status": "new"}
+
+    monkeypatch.setattr(do_client, "create_droplet", flaky_create)
+    result = create.create_lab_droplet("#cloud-config\n", run_id="r", now=1783728000.0)
+    assert landed == ["gpu-h200x1-141gb"]
+    assert result["size"] == "gpu-h200x1-141gb"
+
+
 def test_create_lab_droplet_reraises_non_capacity_error(monkeypatch):
-    # A non-capacity doctl error must NOT be swallowed by the region retry loop.
+    # A non-capacity doctl error must NOT be swallowed by the retry loop.
     _happy(monkeypatch)
 
     def boom(**kw):
@@ -206,10 +237,11 @@ def test_create_lab_droplet_reraises_non_capacity_error(monkeypatch):
 
 
 def test_create_lab_droplet_raises_when_no_capacity_window(monkeypatch):
-    # Every region 422s and the bounded wait elapses -> a clear no-capacity error.
+    # Every SKU+region 422s and the bounded wait elapses -> a clear no-capacity error.
     _happy(monkeypatch)
     monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-h100x1-80gb", "regions": ["atl1"]}]
+        do_client, "list_sizes",
+        lambda: _all_sizes(h100_regions=["nyc2"], h200_regions=["nyc2"], l40s_regions=["nyc2"]),
     )
 
     def always_422(**kw):

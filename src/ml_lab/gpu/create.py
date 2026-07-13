@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from ml_lab.gpu import do_client
 from ml_lab.gpu.constants import (
+    ACCEPTABLE_SIZE_SLUGS,
     BASE_TAGS,
     CREATE_CAPACITY_POLL_INTERVAL_SECONDS,
     CREATE_CAPACITY_WAIT_SECONDS,
@@ -32,15 +33,17 @@ class ConstantsError(RuntimeError):
 
 
 def validate_constants() -> None:
-    """Preflight the size + image exist in the account.
+    """Preflight that the acceptable size slugs + image exist in the account.
 
-    Region is NOT gated here: DO GPU capacity shifts between regions within minutes,
-    so the create region is resolved live at create time (resolve_region) instead of
-    being statically pinned. Where a size exists but is not actually creatable, the
-    create call's DO 422 (pre-billing) is the authority.
+    Region/capacity is NOT gated here: DO GPU capacity shifts between regions AND SKUs
+    within minutes, so the create SKU+region are resolved live at create time (the
+    multi-SKU retry loop) instead of being statically pinned. Where a size exists but
+    is not actually creatable, the create call's DO 422 (pre-billing) is the authority.
     """
-    if next((s for s in do_client.list_sizes() if s["slug"] == DO_SIZE_SLUG), None) is None:
-        raise ConstantsError(f"size {DO_SIZE_SLUG} not found")
+    known = {s["slug"] for s in do_client.list_sizes()}
+    missing = [slug for slug in ACCEPTABLE_SIZE_SLUGS if slug not in known]
+    if missing:
+        raise ConstantsError(f"size(s) not found in account: {missing}")
     if DO_IMAGE_SLUG not in do_client.list_image_slugs():
         raise ConstantsError(f"image {DO_IMAGE_SLUG} not available in account")
 
@@ -85,44 +88,53 @@ class LabDropletExistsError(RuntimeError):
 
 
 def _create_with_region_retry(name, tags, user_data, ssh_key_ids):
-    """Create the droplet, retrying across regions as GPU capacity flips.
+    """Create the droplet, retrying across SKUs AND regions as GPU capacity flips.
 
-    DO reports a size's live regions, but capacity can vanish between the resolve and
-    the create POST (a 422 "not available in this region"). On that 422 we exclude the
-    region and try the next one DO reports; when no region has capacity we re-probe on
-    a bounded poll (capacity windows reopen within minutes). A non-capacity error is
-    re-raised immediately. Returns (region, droplet). All 422s are pre-billing.
+    Single-GPU capacity on DO flaps across both regions and SKUs within minutes, so we
+    try each interchangeable SKU in ACCEPTABLE_SIZE_SLUGS (Hopper first), and for each
+    the region DO currently reports. Capacity can also vanish between the resolve and
+    the create POST (a 422 "not available in this region"); on that 422 we exclude that
+    (SKU, region) pair and move on. When nothing has capacity we re-probe on a bounded
+    poll (windows reopen within minutes). A non-capacity error is re-raised immediately.
+    Returns (size, region, droplet). All 422s are pre-billing.
     """
-    tried: set[str] = set()
+    tried: set[tuple[str, str]] = set()  # (size_slug, region) pairs already 422'd
     start = time.monotonic()
     while True:
-        region = resolve_region(DO_SIZE_SLUG, exclude=tried)
-        if region is not None:
-            try:
-                droplet = do_client.create_droplet(
-                    name=name,
-                    region=region,
-                    size=DO_SIZE_SLUG,
-                    image=DO_IMAGE_SLUG,
-                    tags=tags,
-                    user_data=user_data,
-                    ssh_key_ids=ssh_key_ids,
+        candidate = None
+        for size_slug in ACCEPTABLE_SIZE_SLUGS:
+            excluded = {r for (s, r) in tried if s == size_slug}
+            region = resolve_region(size_slug, exclude=excluded)
+            if region is not None:
+                candidate = (size_slug, region)
+                break
+        if candidate is None:
+            # Nothing has capacity right now — re-probe until a window opens or timeout.
+            if time.monotonic() - start >= CREATE_CAPACITY_WAIT_SECONDS:
+                raise ConstantsError(
+                    f"no capacity for any of {ACCEPTABLE_SIZE_SLUGS} after "
+                    f"{CREATE_CAPACITY_WAIT_SECONDS}s (tried {sorted(tried) or 'none'})"
                 )
-                return region, droplet
-            except do_client.DOClientError as exc:
-                if _SIZE_UNAVAILABLE_IN_REGION not in str(exc):
-                    raise
-                print(f"  region {region} has no capacity; retrying another region…", flush=True)
-                tried.add(region)
-                continue
-        # No region currently has capacity — re-probe until a window opens or we time out.
-        if time.monotonic() - start >= CREATE_CAPACITY_WAIT_SECONDS:
-            raise ConstantsError(
-                f"no region has capacity for {DO_SIZE_SLUG} after "
-                f"{CREATE_CAPACITY_WAIT_SECONDS}s (tried {sorted(tried) or 'none'})"
+            tried.clear()
+            time.sleep(CREATE_CAPACITY_POLL_INTERVAL_SECONDS)
+            continue
+        size_slug, region = candidate
+        try:
+            droplet = do_client.create_droplet(
+                name=name,
+                region=region,
+                size=size_slug,
+                image=DO_IMAGE_SLUG,
+                tags=tags,
+                user_data=user_data,
+                ssh_key_ids=ssh_key_ids,
             )
-        tried.clear()
-        time.sleep(CREATE_CAPACITY_POLL_INTERVAL_SECONDS)
+            return size_slug, region, droplet
+        except do_client.DOClientError as exc:
+            if _SIZE_UNAVAILABLE_IN_REGION not in str(exc):
+                raise
+            print(f"  {size_slug} in {region} has no capacity; trying next…", flush=True)
+            tried.add((size_slug, region))
 
 
 def create_lab_droplet(
@@ -155,10 +167,10 @@ def create_lab_droplet(
     name = NAME_FORMAT.format(run_id=run_id)
     ttl_epoch = int(now) + ttl_seconds
     tags = build_tags(run_id, ttl_epoch)
-    region, droplet = _create_with_region_retry(name, tags, user_data, ssh_key_ids)
+    size, region, droplet = _create_with_region_retry(name, tags, user_data, ssh_key_ids)
     print(
         f"Created droplet:\n  id: {droplet['id']}\n  name: {name}\n"
-        f"  region: {region}\n  local_pid: {os.getpid()}",
+        f"  size: {size}\n  region: {region}\n  local_pid: {os.getpid()}",
         flush=True,
     )
-    return {"id": droplet["id"], "name": name, "run_id": run_id, "region": region}
+    return {"id": droplet["id"], "name": name, "run_id": run_id, "size": size, "region": region}
