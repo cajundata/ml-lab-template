@@ -1,10 +1,10 @@
 """Pinned DigitalOcean GPU-lab constants (master plan §3, no fallback)."""
 
 # Toolchain / image / placement
-DO_REGION = "atl1"  # PREFERRED region only; GPU capacity flips regions per-minute, so create.resolve_region picks the live region for the size at create time
-DO_SIZE_SLUG = "gpu-h200x1-141gb"  # Nvidia H200 single-GPU (type nvidia_h200); replaces gpu-4000adax1-20gb (tor1-only/no capacity)
-DO_GPU_RUNG = "H200"
-DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify H200 boot at S4 live
+DO_REGION = "nyc2"  # PREFERRED region only; GPU capacity flips regions per-minute, so create.resolve_region picks the live region for the size at create time
+DO_SIZE_SLUG = "gpu-h100x1-80gb"  # Nvidia H100 80GB single-GPU (type nvidia_h100); H200 (gpu-h200x1-141gb) had sustained no capacity at S4 live
+DO_GPU_RUNG = "H100"
+DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; native target for H100 (boots; proven on Hopper H200 at S4 live)
 SMOKE_MODEL_ID = "facebook/opt-125m"
 
 # DO Spaces (artifact upload) — region pinned like DO_REGION; change deliberately, no fallback.
