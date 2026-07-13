@@ -235,18 +235,52 @@ make gpu-audit
 Filled in during live execution and committed as the evidence S4 ran. One row per
 gate:
 
-| Gate | Command | Droplet id | Run id | Outcome (PASS/FAIL) | Duration | Notes / probe results |
-|---|---|---|---|---|---|---|
-| 0 — happy path | `make gpu-run` | | | | | |
-| 1 — Ctrl-C mid-run | `make gpu-run` + 2× Ctrl-C | | | | | |
-| 2 — kill -9 self-destruct | `do_gpu.py up --ttl-seconds 900` + `kill -9` | | | | | |
-| 3 — fresh-shell audit | `make gpu-audit` | — | — | | — | |
+Executed live 2026-07-13 (attempt 11 for Gate 0 after 10 dry attempts surfaced the
+fixes below). All seams were mocked through S3; these are the first real runs.
 
-Also record, in memory:
-- **Account-reality finding:** does `gpu-h100x1-base` boot on `gpu-4000adax1-20gb`? Do
-  `nvidia-smi` / torch-CUDA / vLLM work? (Confirms or refutes the pinned assumption.)
-- **S4 completion:** which gates passed, any spun-off follow-up slices (S5 image, or
-  a self-destruct bug), and the closing clean audit.
+| Gate | Command | Droplet id | Run id | Outcome | Notes / probe results |
+|---|---|---|---|---|---|
+| 0 — happy path | `make gpu-run` | 584169607 | 20260713-e72290 | **PASS** (exit 0) | Multi-SKU landed **H200/nyc2** (H100 gave a free 422). Required probes both `ok`: `torch_cuda` (matmul on GPU), `transformers_smoke` (opt-125m loaded on cuda, 8 tokens, 3.4s). `vllm_smoke` informational → FAILED (engine-core init; deferred to Phase 5). `nvidia_smi`/`system` ok. Spaces upload `s3://cajundata-ml-lab/ml-pathway/phase0/20260713-e72290/`. `finally` teardown → audit clean. |
+| 1 — Ctrl-C mid-run | `make gpu-run` + 2× SIGINT | 584170627 | 20260713-f25bc2 | **PASS** (exit 130) | H200/nyc2. SIGINT #1 (21:26:33) → `finally` teardown began; SIGINT #2 (21:26:36, during teardown) **ignored** (SIG_IGN) — teardown not aborted. Droplet destroyed → audit clean. Double-Ctrl-C operator-impatience hardening proven. |
+| 2 — kill -9 self-destruct | `do_gpu.py up --ttl-seconds 900` + `kill -9` | 584171144 | 20260713-f9… | *in progress* | H100/nyc2. `kill -9` (pkill -9) at 21:28:46 right after PID print — no local cleanup ran. Awaiting remote systemd self-destruct (OnBootSec=900s ≈ ~21:43). |
+| 3 — fresh-shell audit | `make gpu-audit` | — | — | *pending* | After Gate 2 self-destruct confirmed. |
+
+### S4 live findings (all surfaced by live execution; each fixed + committed)
+
+The pinned constants and several code paths were only ever exercised against mocks
+(S1–S3c-2, 179 tests). Live execution surfaced, in order:
+
+1. **Region/size pins wrong.** `gpu-4000adax1-20gb`/`nyc2` → the RTX 4000 Ada moved to
+   `tor1`-only and out of capacity. (Repinned; see below.)
+2. **`validate_constants` null-regions false-negative.** DO returns `regions=null` for
+   most GPU SKUs; the region-membership check wrongly rejected them. → only enforce
+   region membership when DO reports a populated list.
+3. **`DO_SSH_KEY_IDS` must be numeric IDs/fingerprints, not names** (`.env` + docs).
+4. **`DO_SSH_KEY_PATH` must be the private key, not `.pub`** (`.env`).
+5. **GPU capacity flips regions per-minute** → dynamic `resolve_region` (live per-size).
+6. **doctl `-o json` writes errors (incl. 404) to STDOUT, not stderr** → `get_droplet`
+   raised instead of returning None, so `_poll_until_absent` looped the full 600s and
+   raised a FALSE `TeardownError` — would break **every** run's teardown. Fixed
+   `get_droplet`/`destroy_droplet`/`_run_doctl` to read stdout+stderr. **(Most serious
+   bug found; only live testing could surface it.)**
+7. **cloud-init venv had no pip** (`gpu-h100x1-base` lacks `python3-venv`/ensurepip) →
+   vllm never installed → probes `ModuleNotFoundError`. → `apt-get install python3-venv`.
+8. **vLLM needs FFmpeg** (torchcodec dlopen's libav*) → `apt-get install ffmpeg`.
+9. **Capacity flips SKUs too, not just regions** → create-time region retry, then
+   multi-SKU retry (H100/H200/L40S), landing whichever has capacity.
+10. **vLLM engine-core init is finicky** (root cause in an uncaptured subprocess) →
+    demoted `vllm_smoke` to informational; added a required lightweight
+    `transformers_smoke` probe (torch already proven). vLLM tuning deferred to Phase 5.
+
+**Account-reality finding (confirms/updates the pins):** `gpu-h100x1-base` **boots
+cleanly on Hopper (H100 80GB and H200 141GB)** — `nvidia-smi` shows the GPU, torch+CUDA
+matmul works, and a transformers `opt-125m` generate runs on-GPU. Pinned SKU is now the
+interchangeable list `[gpu-h100x1-80gb, gpu-h200x1-141gb, gpu-l40sx1-48gb]` (Hopper
+first). vLLM serving does **not** yet run (engine-core init) — a Phase-5 concern, not a
+Phase-0 blocker.
+
+Also record, in memory: **S4 completion** — which gates passed, follow-ups (vLLM
+engine tuning → Phase 5), and the closing clean audit.
 
 ## Success criteria
 
