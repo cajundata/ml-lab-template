@@ -33,7 +33,11 @@ def validate_constants() -> None:
     size = next((s for s in do_client.list_sizes() if s["slug"] == DO_SIZE_SLUG), None)
     if size is None:
         raise ConstantsError(f"size {DO_SIZE_SLUG} not found")
-    if DO_REGION not in (size.get("regions") or []):
+    # DO's /v2/sizes returns regions=null for many GPU SKUs (e.g. gpu-4000adax1-20gb),
+    # so only enforce region membership when DO actually reports a populated list.
+    # For null/empty regions the create call (DO 422, pre-billing) is the authority.
+    regions = size.get("regions")
+    if regions and DO_REGION not in regions:
         raise ConstantsError(f"size {DO_SIZE_SLUG} not available in {DO_REGION}")
     if DO_IMAGE_SLUG not in do_client.list_image_slugs():
         raise ConstantsError(f"image {DO_IMAGE_SLUG} not available in account")

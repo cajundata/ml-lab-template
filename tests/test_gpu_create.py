@@ -6,9 +6,9 @@ from ml_lab.gpu.create import ConstantsError
 
 def _valid(monkeypatch):
     """Mock do_client so validate_constants passes for the corrected constants."""
-    monkeypatch.setattr(do_client, "list_region_slugs", lambda: ["nyc2"])
+    monkeypatch.setattr(do_client, "list_region_slugs", lambda: ["atl1"])
     monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-4000adax1-20gb", "regions": ["nyc2"]}]
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["atl1"]}]
     )
     monkeypatch.setattr(do_client, "list_image_slugs", lambda: ["gpu-h100x1-base"])
 
@@ -35,10 +35,23 @@ def test_validate_constants_size_missing(monkeypatch):
 def test_validate_constants_size_not_in_region(monkeypatch):
     _valid(monkeypatch)
     monkeypatch.setattr(
-        do_client, "list_sizes", lambda: [{"slug": "gpu-4000adax1-20gb", "regions": ["sfo3"]}]
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": ["sfo3"]}]
     )
     with pytest.raises(ConstantsError):
         create.validate_constants()
+
+
+def test_validate_constants_size_null_regions_allowed(monkeypatch):
+    # DO's /v2/sizes returns regions=null for many GPU SKUs (this bit us on
+    # gpu-4000adax1-20gb during S4 live). A null/empty regions list must NOT be
+    # treated as "unavailable" — the region check only applies when DO reports a
+    # populated regions list. The real create call (DO 422, pre-billing) is the
+    # authority for null-regions GPU sizes.
+    _valid(monkeypatch)
+    monkeypatch.setattr(
+        do_client, "list_sizes", lambda: [{"slug": "gpu-h200x1-141gb", "regions": None}]
+    )
+    create.validate_constants()  # no raise
 
 
 def test_validate_constants_image_missing(monkeypatch):
@@ -93,8 +106,8 @@ def test_create_lab_droplet_happy(monkeypatch, capsys):
     }
     kw = calls["kwargs"]
     assert kw["name"] == "ml-lab-gpu-phase0-20260711-abc123"
-    assert kw["region"] == "nyc2"
-    assert kw["size"] == "gpu-4000adax1-20gb"
+    assert kw["region"] == "atl1"
+    assert kw["size"] == "gpu-h200x1-141gb"
     assert kw["image"] == "gpu-h100x1-base"
     assert kw["user_data"] == "#cloud-config\n"
     assert "run-20260711-abc123" in kw["tags"]

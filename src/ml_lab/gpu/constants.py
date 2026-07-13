@@ -1,10 +1,10 @@
 """Pinned DigitalOcean GPU-lab constants (master plan §3, no fallback)."""
 
 # Toolchain / image / placement
-DO_REGION = "nyc2"  # atl1 has no GPU capacity in-account; deliberate change (master plan §3)
-DO_SIZE_SLUG = "gpu-4000adax1-20gb"  # RTX 4000 Ada single-GPU (type nvidia_rtx4000_ada)
-DO_GPU_RUNG = "RTX 4000 Ada"
-DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify RTX-4000 boot at S3 live
+DO_REGION = "atl1"  # S4 live (2026-07-12): 4000ada moved to tor1-only & out of capacity; h200x1 is offered in atl1
+DO_SIZE_SLUG = "gpu-h200x1-141gb"  # Nvidia H200 single-GPU (type nvidia_h200); replaces gpu-4000adax1-20gb (tor1-only/no capacity)
+DO_GPU_RUNG = "H200"
+DO_IMAGE_SLUG = "gpu-h100x1-base"  # NVIDIA AI/ML Ready Image; slug legacy-named, verify H200 boot at S4 live
 SMOKE_MODEL_ID = "facebook/opt-125m"
 
 # DO Spaces (artifact upload) — region pinned like DO_REGION; change deliberately, no fallback.
