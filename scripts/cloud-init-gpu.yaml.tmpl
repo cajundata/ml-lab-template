@@ -43,6 +43,8 @@ runcmd:
   - systemctl is-active --quiet ml-lab-self-destruct.timer
   - mkdir -p /opt/ml-lab/artifacts
   - nvidia-smi > /opt/ml-lab/artifacts/nvidia-smi.txt 2>&1 || true
+  - DEBIAN_FRONTEND=noninteractive apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip
   - python3 -m venv /opt/ml-lab/venv
   - /opt/ml-lab/venv/bin/python -m pip install --upgrade pip
   - /opt/ml-lab/venv/bin/python -m pip install vllm

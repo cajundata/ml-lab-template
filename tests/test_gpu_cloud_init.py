@@ -77,6 +77,18 @@ def test_runcmd_arms_timer_before_install_and_marks_ready_last():
     assert any(i > pip_idx for i in active_idxs)  # re-verified before the ready marker
 
 
+def test_runcmd_installs_venv_toolchain_before_creating_venv():
+    # gpu-h100x1-base ships python3 WITHOUT ensurepip/python3-venv, so `python3 -m venv`
+    # yields a pip-less venv and the vllm install silently no-ops (S4 live finding).
+    # The venv toolchain must be apt-installed after the timer is armed, before the venv.
+    doc = yaml.safe_load(cloud_init.render_cloud_init(run_id="r", destroy_token=FAKE_TOKEN))
+    cmds = [str(c) for c in doc["runcmd"]]
+    enable_idx = next(i for i, c in enumerate(cmds) if "enable --now ml-lab-self-destruct.timer" in c)
+    apt_idx = next(i for i, c in enumerate(cmds) if "apt-get install" in c and "python3-venv" in c)
+    venv_idx = next(i for i, c in enumerate(cmds) if "python3 -m venv" in c)
+    assert enable_idx < apt_idx < venv_idx
+
+
 def test_render_raises_on_empty_token():
     with pytest.raises(ValueError, match="destroy_token"):
         cloud_init.render_cloud_init(run_id="r", destroy_token="")
