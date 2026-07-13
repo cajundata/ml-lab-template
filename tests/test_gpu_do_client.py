@@ -47,6 +47,21 @@ def test_get_droplet_absent_returns_none(monkeypatch):
     assert do_client.get_droplet(7) is None
 
 
+def test_get_droplet_absent_via_stdout_json_returns_none(monkeypatch):
+    # Real doctl behavior with `-o json`: a 404 error is emitted as JSON on STDOUT
+    # (exit 1), stderr empty. Absence detection must look at stdout, not just stderr.
+    payload = (
+        '{"errors":[{"detail":"GET https://api.digitalocean.com/v2/droplets/7: '
+        '404 (request \\"x\\") The resource you were accessing could not be found."}]}'
+    )
+    monkeypatch.setattr(
+        do_client.subprocess,
+        "run",
+        lambda *a, **k: _completed(returncode=1, stdout=payload, stderr=""),
+    )
+    assert do_client.get_droplet(7) is None
+
+
 def test_get_droplet_other_error_raises(monkeypatch):
     monkeypatch.setattr(
         do_client.subprocess,
@@ -70,6 +85,16 @@ def test_destroy_droplet_status_mapping(monkeypatch):
         do_client.subprocess, "run", lambda *a, **k: _completed(returncode=1, stderr="500 boom")
     )
     assert do_client.destroy_droplet(7) == "error"
+
+    # Real doctl `-o json`: the 404 is on STDOUT (exit 1), stderr empty.
+    monkeypatch.setattr(
+        do_client.subprocess,
+        "run",
+        lambda *a, **k: _completed(
+            returncode=1, stdout='{"errors":[{"detail":"... 404 ... not be found."}]}', stderr=""
+        ),
+    )
+    assert do_client.destroy_droplet(7) == "gone"
 
 
 def test_probe_destroy_token_ok_on_404(monkeypatch):

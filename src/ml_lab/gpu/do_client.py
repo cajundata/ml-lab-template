@@ -32,9 +32,10 @@ def _run_doctl(args: list[str]) -> list[dict]:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        raise DOClientError(
-            f"doctl {' '.join(args)} failed: {(exc.stderr or '').strip()}"
-        ) from exc
+        # doctl `-o json` writes error detail to stdout, not stderr — include both,
+        # else the message is blank (this masked an invalid-ssh-key error at S4 live).
+        detail = ((exc.stderr or "") + (exc.stdout or "")).strip()
+        raise DOClientError(f"doctl {' '.join(args)} failed: {detail}") from exc
     text = (result.stdout or "").strip()
     if not text or text == "null":
         return []
@@ -67,9 +68,11 @@ def get_droplet(droplet_id: int) -> dict | None:
     if result.returncode == 0:
         data = json.loads(result.stdout)
         return data[0] if isinstance(data, list) else data
-    if "404" in (result.stderr or ""):
+    # doctl `-o json` emits errors (incl. the 404) as JSON on STDOUT, not stderr.
+    err = (result.stderr or "") + (result.stdout or "")
+    if "404" in err:
         return None
-    raise DOClientError(f"droplet get failed: {(result.stderr or '').strip()}")
+    raise DOClientError(f"droplet get failed: {err.strip()}")
 
 
 def destroy_droplet(droplet_id: int) -> str:
@@ -85,7 +88,8 @@ def destroy_droplet(droplet_id: int) -> str:
     )
     if result.returncode == 0:
         return "accepted"
-    if "404" in (result.stderr or ""):
+    # doctl `-o json` emits the 404 as JSON on STDOUT, not stderr.
+    if "404" in ((result.stderr or "") + (result.stdout or "")):
         return "gone"
     return "error"
 
