@@ -89,6 +89,14 @@ def test_runcmd_installs_venv_toolchain_before_creating_venv():
     assert enable_idx < apt_idx < venv_idx
 
 
+def test_runcmd_installs_ffmpeg_for_vllm():
+    # vllm pulls torchcodec, which dlopen's FFmpeg's libav* at import; without ffmpeg
+    # the vllm_smoke probe dies on 'libavutil.so.* cannot open' (S4 live finding).
+    doc = yaml.safe_load(cloud_init.render_cloud_init(run_id="r", destroy_token=FAKE_TOKEN))
+    cmds = [str(c) for c in doc["runcmd"]]
+    assert any("apt-get install" in c and "ffmpeg" in c for c in cmds)
+
+
 def test_render_raises_on_empty_token():
     with pytest.raises(ValueError, match="destroy_token"):
         cloud_init.render_cloud_init(run_id="r", destroy_token="")
